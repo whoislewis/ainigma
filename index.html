@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ainigma | Cultivate Intelligence</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=Inclusive+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- 0. RESET & VARIABLES --- */
+        :root {
+            --color-primary: #342B85; /* Deep Blue */
+            --color-text: #050505;
+            --color-bg-light: #FFFFFF;
+            --color-bg-build: #f2e291;
+            /* Light Blue with Transparency for Glass Effect */
+            --color-bg-intro: rgba(179, 204, 255, 0.75); 
+            --color-accent: #FF5A36;   /* Brand Red */
+            
+            --sidebar-width: 280px;
+            --gutter: 30px;
+            --hero-height: 90vh; 
+            
+            --font-sans: 'Inclusive Sans', sans-serif;
+            --font-mono: 'DM Mono', monospace;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: var(--font-sans);
+            background-color: var(--color-bg-light);
+            color: var(--color-text);
+            display: flex;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        a { text-decoration: none; color: inherit; }
+
+        /* --- 1. RIGHT SIDE GLOW (Larger Wave) --- */
+        @keyframes visibleWave {
+            0% { transform: translateY(0); }
+            15% { transform: translateY(100px); } /* Deep drop (100px) */
+            30% { transform: translateY(0); }     /* Roll back up */
+            100% { transform: translateY(0); }    /* Pause */
+        }
+
+        .noise-glow-strip {
+            position: fixed;
+            top: -50px; /* Start slightly higher so drop is visible */
+            right: 0;
+            bottom: -50px; /* Extend bottom to avoid gap when moving up */
+            width: 30px;
+            z-index: 9999;
+            pointer-events: none;
+            -webkit-mask-image: linear-gradient(to right, transparent, black);
+            mask-image: linear-gradient(to right, transparent, black);
+            
+            /* 8s loop: Big movement, then pause */
+            animation: visibleWave 8s ease-in-out infinite;
+        }
+
+        .noise-glow-strip::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(255, 90, 54, 0.95); z-index: 1;
+        }
+        .noise-glow-strip::after {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 2; opacity: 0.8; 
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='1'/%3E%3C/svg%3E");
+            mix-blend-mode: overlay;
+        }
+
+        /* --- 2. SIDEBAR --- */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            width: var(--sidebar-width);
+            background-color: var(--color-primary);
+            color: #fff;
+            padding: var(--gutter);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            z-index: 1000;
+        }
+        .brand-container { margin-bottom: 2rem; }
+        .logo-img { width: 200px; height: auto; display: block; filter: brightness(0) invert(1); }
+        .nav-menu { display: flex; flex-direction: column; gap: 1.2rem; }
+        .nav-link { font-family: var(--font-mono); font-size: 1rem; opacity: 0.7; transition: opacity 0.3s; text-transform: uppercase; letter-spacing: 0.05em; }
+        .nav-link:hover, .nav-link.active { opacity: 1; color: var(--color-accent); }
+        .sidebar-footer { font-family: var(--font-mono); font-size: 0.75rem; opacity: 0.5; line-height: 1.6; }
+        .sidebar-footer span { display: block; }
+
+        /* --- 3. MAIN WRAPPER --- */
+        .main-wrapper {
+            margin-left: var(--sidebar-width);
+            width: calc(100% - var(--sidebar-width));
+            position: relative;
+        }
+
+        /* --- 4. HERO (FIXED) --- */
+        .hero-fixed {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: calc(100% - var(--sidebar-width));
+            height: var(--hero-height);
+            background-color: #fff;
+            z-index: 0; 
+            display: flex;
+            overflow: hidden;
+        }
+        .hero-text-wrapper {
+            width: 50%; height: 100%; display: flex; flex-direction: column; justify-content: center;
+            padding: var(--gutter); padding-right: 80px; background: #fff; z-index: 10;
+        }
+        h1 { font-size: 5.5rem; line-height: 0.9; font-weight: 300; letter-spacing: -0.05em; margin-bottom: 2rem; color: var(--color-accent); }
+        .hero-sub { font-size: 1.35rem; line-height: 1.4; max-width: 480px; margin-bottom: 3rem; font-weight: 400; color: var(--color-text); }
+        .btn-primary { display: inline-block; font-family: var(--font-mono); padding: 1rem 1.5rem; background: var(--color-accent); color: #fff; border-radius: 3px; font-size: 0.9rem; width: fit-content; transition: background 0.3s; }
+        .btn-primary:hover { background: #d44526; }
+        
+        /* DOTS STRIP */
+        .hero-dots-strip {
+            position: absolute; left: 50%; top: 0; bottom: 0; width: 120px; z-index: 5; 
+            background: radial-gradient(circle at center, transparent 18px, #ffffff 18.5px);
+            background-size: 120px 180px; background-position: left center; 
+        }
+        .hero-image-layer {
+            position: absolute; right: 0; top: 0; bottom: 0; width: 50%; 
+            background-image: url('https://www.dropbox.com/scl/fi/3eeuuf91lcn37xgxtbqpq/ms-cb4d3e190583995.65bd020b571d8.webp?rlkey=y3w9jqobgaai413633brfkthf&dl=1');
+            background-size: cover; background-position: center left; z-index: 1;
+        }
+
+        /* --- 5. SCROLL COVER --- */
+        .scroll-cover {
+            position: relative;
+            z-index: 20; 
+            margin-top: var(--hero-height); 
+            width: 100%;
+            box-shadow: 0 -5px 15px rgba(0,0,0,0.03);
+            background-color: transparent; 
+        }
+
+        /* PHILOSOPHY */
+        .intro-section {
+            padding: calc(var(--gutter) * 4) var(--gutter);
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: var(--gutter);
+            
+            background-color: var(--color-bg-intro); 
+            backdrop-filter: blur(10px); 
+            -webkit-backdrop-filter: blur(10px);
+        }
+
+        .section-label {
+            grid-column: 1 / 3;
+            font-family: var(--font-mono); font-size: 0.8rem;
+            color: var(--color-primary); padding-top: 10px; opacity: 0.6;
+        }
+
+        /* MEDIA LEFT */
+        .intro-media-wrapper {
+            grid-column: 1 / 7; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .intro-gif {
+            width: 100%;
+            max-width: 450px;
+            height: auto;
+            display: block;
+            mix-blend-mode: multiply; 
+        }
+
+        /* TEXT RIGHT */
+        .intro-content {
+            grid-column: 7 / 13; 
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding-left: 60px;
+        }
+
+        .intro-lead { font-size: 2.8rem; line-height: 1.1; letter-spacing: -0.02em; margin-bottom: 2rem; font-weight: 300; }
+        .intro-body { font-size: 1.1rem; line-height: 1.6; color: #222; margin-bottom: 2rem; }
+        .read-more-link {
+            font-family: var(--font-mono); font-size: 0.9rem; color: var(--color-text);
+            text-decoration: none; border-bottom: 1px solid var(--color-text); padding-bottom: 2px; transition: color 0.3s;
+        }
+        .read-more-link:hover { color: var(--color-accent); border-color: var(--color-accent); }
+
+        /* SERVICES (Static Background Grid) */
+        .build-mode {
+            background-color: var(--color-bg-build);
+            padding: calc(var(--gutter) * 3) var(--gutter);
+            min-height: 80vh;
+            
+            /* STATIC DOTS */
+            /* 3.5px radius dot, 130px spacing */
+            background-image: radial-gradient(#ffffff 3.5px, transparent 4px);
+            background-size: 130px 130px;
+            background-attachment: fixed; /* This fixes the dots in place */
+        }
+        .build-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: calc(var(--gutter) * 4); }
+        .build-title { font-family: var(--font-sans); font-size: 48px; font-weight: 300; letter-spacing: -0.04em; line-height: 1; color: var(--color-primary); }
+        .grid-container { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--gutter); }
+        .service-card {
+            padding: var(--gutter); background: rgba(255, 255, 255, 0.3); backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.4); min-height: 450px;
+            display: flex; flex-direction: column; justify-content: space-between; transition: all 0.4s ease; border-radius: 3px; cursor: pointer;
+        }
+        .service-card:hover { background: rgba(255, 255, 255, 1); transform: translateY(-5px); box-shadow: 0 30px 60px rgba(0,0,0,0.05); border-color: #fff; }
+        .service-card:hover .card-title, .service-card:hover .card-desc, .service-card:hover .card-meta { color: var(--color-primary); opacity: 1; }
+        .card-meta { font-family: var(--font-mono); font-size: 0.85rem; color: var(--color-primary); display: flex; justify-content: space-between; margin-bottom: 2rem; opacity: 0.7; transition: color 0.3s; }
+        .card-title { font-size: 1.8rem; margin-bottom: 1.5rem; font-weight: 400; line-height: 1.1; transition: color 0.3s; }
+        .card-desc { font-size: 1rem; line-height: 1.5; color: #222; transition: color 0.3s; }
+
+        /* FOOTER */
+        .site-footer {
+            padding: calc(var(--gutter) * 4) var(--gutter);
+            color: #fff;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: var(--gutter);
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            position: relative;
+            background-color: var(--color-primary);
+            background-image: url('footer-gradient.png');
+            background-blend-mode: hard-light;
+            background-size: cover;
+            background-position: center;
+        }
+        .footer-col h4 { color: rgba(255,255,255,0.5); margin-bottom: 2rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .footer-col ul { list-style: none; }
+        .footer-col li { margin-bottom: 1rem; }
+        .footer-link { color: #fff; text-decoration: none; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 2px; }
+
+        @media (max-width: 1024px) {
+            :root { --sidebar-width: 0px; --gutter: 20px; --hero-height: auto; }
+            .sidebar { height: 60px; width: 100%; flex-direction: row; align-items: center; padding: 0 20px; }
+            .logo-img { width: 60px; } 
+            .nav-menu, .sidebar-footer { display: none; }
+            .main-wrapper { margin-left: 0; width: 100%; padding-top: 60px; }
+            .hero-fixed { position: relative; height: auto; flex-direction: column; width: 100%; }
+            .hero-text-wrapper { width: 100%; padding: 40px 20px; }
+            .hero-dots-strip { display: none; }
+            .hero-image-layer { position: relative; width: 100%; height: 400px; }
+            .scroll-cover { margin-top: 0; box-shadow: none; background-color: #fff; }
+            h1 { font-size: 3.5rem; }
+            .noise-glow-strip { width: 20px; }
+            .grid-container { grid-template-columns: 1fr; }
+            .site-footer { grid-template-columns: 1fr 1fr; }
+            .intro-section { display: flex; flex-direction: column; padding: 40px 20px; }
+            .intro-content { grid-column: auto; padding-left: 0; }
+            .intro-media-wrapper { grid-column: auto; margin-bottom: 40px; }
+            /* Disable fixed bg on mobile to prevent jitters */
+            .build-mode { background-attachment: scroll; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- RIGHT GLOW -->
+    <div class="noise-glow-strip"></div>
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+        <div class="brand-container">
+            <img src="logo.svg" alt="Ainigma Logo" class="logo-img">
+        </div>
+        <nav class="nav-menu">
+            <a href="#" class="nav-link active">Approach</a>
+            <a href="#" class="nav-link">Services</a>
+            <a href="#" class="nav-link">Insights</a>
+            <a href="#" class="nav-link">About</a>
+            <a href="#" class="nav-link">Contact</a>
+        </nav>
+        <div class="sidebar-footer">
+            <span>LOC: AMSTERDAM</span>
+            <span>EST: 2025</span>
+            <span>STATUS: LIVE</span>
+        </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <div class="main-wrapper">
+        
+        <!-- HERO (Fixed) -->
+        <div class="hero-fixed">
+            <div class="hero-text-wrapper">
+                <h1>Cultivate<br>intelligence.</h1>
+                <p class="hero-sub">
+                    We are a boutique AI consultancy helping organizations assess, innovate, and amplify their potential. We build frameworks where human creativity and machine intelligence flourish together.
+                </p>
+                <a href="#" class="btn-primary">Discover our custom augmentations</a>
+            </div>
+            <!-- DOTS -->
+            <div class="hero-dots-strip"></div>
+            <!-- IMAGE -->
+            <div class="hero-image-layer"></div>
+        </div>
+
+        <!-- SCROLLING COVER -->
+        <div class="scroll-cover">
+            
+            <!-- PHILOSOPHY (Blue Glass + GIF) -->
+            <section class="intro-section">
+                <div class="section-label">
+                    01 // APPROACH
+                </div>
+                
+                <!-- Media Left -->
+                <div class="intro-media-wrapper">
+                    <!-- Ensure 'test.gif' is in folder -->
+                    <img src="test.gif" alt="Growing Intelligence" class="intro-gif">
+                </div>
+
+                <!-- Text Right -->
+                <div class="intro-content">
+                    <h2 class="intro-lead">Artificial Intelligence,<br>Human Growth.</h2>
+                    <p class="intro-body">
+                        Ainigma bridges the gap between technical complexity and human potential. While others engineer and optimize, we cultivate. 
+                        <br><br>
+                        We believe that meaningful transformation isn't about installing software—it's about enabling people. From strategic roadmaps to hands-on innovation sprints, we provide the clarity and structure your teams need to confidently embrace AI. We don't replace your workforce; we give them superpowers.
+                    </p>
+                    <a href="#" class="read-more-link">Read more about our philosophy →</a>
+                </div>
+            </section>
+
+            <!-- SERVICES -->
+            <section class="build-mode">
+                <div class="build-header">
+                    <div class="build-title">Frameworks for Growth</div>
+                    <div style="font-family: var(--font-mono); font-size: 0.9rem;">[ SYSTEM: ACTIVE ]</div>
+                </div>
+
+                <div class="grid-container">
+                    <!-- Card 1 -->
+                    <div class="service-card">
+                        <div class="card-meta">
+                            <span>PHASE_01</span>
+                            <span>FOUNDATION</span>
+                        </div>
+                        <div>
+                            <h3 class="card-title">Assess &<br>Align</h3>
+                            <p class="card-desc">
+                                We analyze your current workflows and identify high-impact opportunities for AI integration. We assess readiness, mitigate risks, and build a strategic roadmap aligned with your core business goals.
+                            </p>
+                        </div>
+                    </div>
+                    <!-- Card 2 -->
+                    <div class="service-card">
+                        <div class="card-meta">
+                            <span>PHASE_02</span>
+                            <span>CREATION</span>
+                        </div>
+                        <div>
+                            <h3 class="card-title">Innovate &<br>Co-create</h3>
+                            <p class="card-desc">
+                                Moving from theory to practice. We run collaborative sprints with your teams to prototype and validate AI use cases. We turn abstract potential into tangible tools that solve real problems.
+                            </p>
+                        </div>
+                    </div>
+                    <!-- Card 3 -->
+                    <div class="service-card">
+                        <div class="card-meta">
+                            <span>PHASE_03</span>
+                            <span>ADOPTION</span>
+                        </div>
+                        <div>
+                            <h3 class="card-title">Amplify &<br>Upskill</h3>
+                            <p class="card-desc">
+                                Technology is only as good as the people using it. We deliver comprehensive change programs and upskilling workshops that empower your entire workforce to use AI with confidence and curiosity.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- FOOTER -->
+            <footer class="site-footer">
+                <div class="footer-col">
+                    <h4>Ainigma</h4>
+                    <ul>
+                        <li>Amsterdam, NL</li>
+                        <li><a href="mailto:hello@ainigma.co" class="footer-link">hello@ainigma.co</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col">
+                    <h4>Social</h4>
+                    <ul>
+                        <li><a href="#" class="footer-link">LinkedIn</a></li>
+                        <li><a href="#" class="footer-link">Instagram</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col">
+                    <h4>Legal</h4>
+                    <ul>
+                        <li><a href="#" class="footer-link">Privacy Policy</a></li>
+                        <li><a href="#" class="footer-link">Terms of Service</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col">
+                    <p style="opacity: 0.5;">© 2025 Ainigma</p>
+                </div>
+            </footer>
+
+        </div>
+    </div>
+
+</body>
+</html>

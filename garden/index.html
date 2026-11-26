@@ -32,7 +32,7 @@
        box-shadow:0 10px 40px rgba(0,0,0,.28),inset 0 0 0 1px rgba(255,255,255,.08);opacity:0;pointer-events:none;transition:opacity .5s;cursor:default;color:#fff;font-size:12.5px}
   #bar.on{opacity:1;pointer-events:auto}
   #bar{touch-action:pan-y;overscroll-behavior:contain}
-  #logo{align-self:start;width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:#f2f2f2;color:#ff6446;overflow:hidden;transition:background .8s,color .8s}
+  #logo{align-self:start;width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:none;color:#ff6446;overflow:hidden}
   #logo svg{width:28px;height:28px;display:block}
   #bar .rows{display:flex;flex-direction:column;gap:7px}
   #bar .row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 26px}
@@ -50,6 +50,10 @@
   #bar .sep{width:1px;height:18px;background:rgba(255,255,255,.16)}
   #bar .acts button{opacity:.75;font-size:12px}
   #bar #gSpd .lbl{min-width:0}
+  #bar .sl{gap:8px;flex-wrap:nowrap}
+  #bar input[type=range]{width:150px;accent-color:#fff;cursor:pointer;margin:0 2px;touch-action:pan-x}
+  #bar .val{min-width:34px;font:500 11px/1 ui-monospace,Menlo,monospace;opacity:.8}
+  #logo{background:none !important}
   #bar #gLook,#bar #gStyle{flex-wrap:nowrap}
   #bar #barX{all:unset;position:absolute;right:8px;top:8px;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:.7;font-size:18px;line-height:1;color:#fff}
   #bar #barX:hover{opacity:1;background:rgba(255,255,255,.14)}
@@ -65,7 +69,9 @@
     #bar .row{gap:8px 14px}
     #bar .grp{flex-wrap:wrap !important}
     #bar .lbl{min-width:0;width:100%;margin:2px 0 2px 4px}
-    #bar #gSpd .lbl{width:auto}
+    #bar #gSpd .lbl,#bar .sl .lbl{width:auto}
+    #bar .sl{flex-wrap:nowrap !important}
+    #bar input[type=range]{flex:1;min-width:120px;height:28px}
     #bar button{padding:8px 12px}
     #bar button.sw{width:26px;height:26px}
   }
@@ -102,9 +108,10 @@
     <div id="logo" title="Ainigma"><svg viewBox="0 0 1200 1200" aria-label="Ainigma" role="img"><path fill="currentColor" d="M842.18,520.17c-41.01,300.46-290.23,528.58-290.23,528.58v145.19h399.28v-673.77h-109.05Z"/><path fill="currentColor" d="M795.04,520.17c-6.14-59.64-29.01-107.92-69.66-137-117.24-83.78-337.59,23.64-492.23,239.98-154.71,216.33-184.99,459.62-67.76,543.4,92.39,65.99,248.73,13.27,386.57-117.87v-520.75c0-4.31,3.46-7.76,7.76-7.76h235.32Z"/><path fill="currentColor" d="M951.23,5c85.47,0,154.78,69.31,154.78,154.78s-69.31,154.78-154.78,154.78-154.78-69.31-154.78-154.78S865.76,5,951.23,5"/></svg></div>
     <div class="rows">
       <div class="row"><div class="grp" id="gStyle"><span class="lbl">Scene</span></div></div>
-      <div class="row"><div class="grp" id="gArr"><span class="lbl">Garden</span></div><div class="grp" id="gSpd"><span class="lbl">Speed</span></div></div>
+      <div class="row"><div class="grp" id="gArr"><span class="lbl">Garden</span></div><div class="grp sl" id="gSpd"><span class="lbl">Speed</span><input id="spdR" type="range" min="0" max="1000" step="1" value="200" aria-label="Growth speed"><span class="val" id="spdV">1×</span></div></div>
       <div class="row"><div class="grp" id="gCol"><span class="lbl">Colour</span></div></div>
       <div class="row"><div class="grp" id="gLook"><span class="lbl">Look</span></div></div>
+      <div class="row" id="gPix" style="display:none"><div class="grp" id="gPat"><span class="lbl">Pixel</span></div><div class="grp sl"><span class="lbl">Size</span><input id="pixR" type="range" min="1" max="24" step="1" value="4" aria-label="Pixel size"><span class="val" id="pixV">4</span></div></div>
       <div class="row acts"><span class="lbl"></span>
         <button id="bCam" type="button" title="Webcam input (C)">Camera</button>
         <button id="bView" type="button" title="Show or hide the camera image over the garden (V)">Camera image</button>
@@ -241,6 +248,7 @@ function col(pen, c, dl = 0, a = 1, ds = 0) {
 let GR = true;
 function ground(pen, x, y, r, c) {
   if (!GR) return;
+  if (LG.on) { const li = LG.li(pen); if (hazeL < 44) { const g = LG.rgba(`hsla(${c[0] | 0},85%,68%,.2)`); LG.blob(li, x, y, r * 2, r * 2, .1, g); } LG.blob(li, x + r * .16, y + r * .24, r * 1.5, r * 1.5, .2, LG.rgba(`rgba(${SH},.34)`)); return; }
   const k = pen.ctx; let g; if (FF) batFlush(k);
   if (hazeL < 44) {
     g = k.createRadialGradient(x, y, r * .2, x, y, r * 2);
@@ -256,8 +264,8 @@ function ground(pen, x, y, r, c) {
 // so the compositor can bend a whole plant from its own root when the wind passes.
 function mkOrg(x, y, st, ph) { const r = clamp(Math.round(((x - W / 2) / SPAN + .5) * 255), 0, 255), g = clamp(Math.round((H - y) / SPAN * 255 + 25), 0, 255), b = (st | 0) * 64 + (ph === undefined ? Math.floor(rnd() * 64) : ph & 63); return { x, y, col: `rgb(${r},${g},${b})` }; }
 // the per-plant map is switched off: the painted picture is never bent or warped
-function orgPen(pen) { return pen; }
-function orgLike(base, pen) { if (!pen.org) return base; const q = Object.create(base); q.org = pen.org; return q; }
+function orgPen(pen, x, y) { return x === undefined ? pen : rooted(pen, x, y); }
+function orgLike(base, pen) { if (!pen.org && !pen.root) return base; const q = Object.create(base); q.org = pen.org; q.root = pen.root; return q; }
 // fast-forward (the jump): bigger time steps, coarser segments, and consecutive strokes of the same colour and width
 // are gathered into one path, so minutes of growth can be painted in a second or two. Order of painting is kept.
 let FF = 0;
@@ -270,8 +278,8 @@ function batSeg(k, x1, y1, x2, y2, w, s) {
   if (!b) { b = { s, w, cap, p: new Path2D(), x: NaN, y: NaN }; BAT.set(k, b); }
   if (b.x !== x1 || b.y !== y1) b.p.moveTo(x1, y1); b.p.lineTo(x2, y2); b.x = x2; b.y = y2;
 }
-function dot(pen, x, y, r, c, dl = 0, a = 1) { const k = pen.ctx; if (FF) { batFlush(k); batFlush(pen.layer.actx); } pen.layer.d = 1; k.fillStyle = col(pen, c, dl, a); k.beginPath(); k.arc(x, y, r, 0, TAU); k.fill(); if (pen.org) { const q = pen.layer.actx; q.fillStyle = pen.org.col; q.beginPath(); q.arc(x, y, r + DIL, 0, TAU); q.fill(); } }
-function seg(pen, x1, y1, x2, y2, w, style) { const k = pen.ctx; pen.layer.d = 1; if (FF) { const wq = Math.round(w * 2) / 2 || .5; batSeg(k, x1, y1, x2, y2, wq, style); if (pen.org) batSeg(pen.layer.actx, x1, y1, x2, y2, wq + DIL * 2, pen.org.col); return; } k.strokeStyle = style; k.lineWidth = w; k.beginPath(); k.moveTo(x1, y1); k.lineTo(x2, y2); k.stroke(); if (pen.org) { const q = pen.layer.actx; q.strokeStyle = pen.org.col; q.lineWidth = w + DIL * 2; q.beginPath(); q.moveTo(x1, y1); q.lineTo(x2, y2); q.stroke(); } }
+function dot(pen, x, y, r, c, dl = 0, a = 1) { if (LG.on) return LG.dot(pen, x, y, r, col(pen, c, dl, a)); const k = pen.ctx; if (FF) { batFlush(k); batFlush(pen.layer.actx); } pen.layer.d = 1; k.fillStyle = col(pen, c, dl, a); k.beginPath(); k.arc(x, y, r, 0, TAU); k.fill(); if (pen.org) { const q = pen.layer.actx; q.fillStyle = pen.org.col; q.beginPath(); q.arc(x, y, r + DIL, 0, TAU); q.fill(); } }
+function seg(pen, x1, y1, x2, y2, w, style) { if (LG.on) { LG.seg(pen, x1, y1, x2, y2, w, style); return; } const k = pen.ctx; pen.layer.d = 1; if (FF) { const wq = Math.round(w * 2) / 2 || .5; batSeg(k, x1, y1, x2, y2, wq, style); if (pen.org) batSeg(pen.layer.actx, x1, y1, x2, y2, wq + DIL * 2, pen.org.col); return; } k.strokeStyle = style; k.lineWidth = w; k.beginPath(); k.moveTo(x1, y1); k.lineTo(x2, y2); k.stroke(); if (pen.org) { const q = pen.layer.actx; q.strokeStyle = pen.org.col; q.lineWidth = w + DIL * 2; q.beginPath(); q.moveTo(x1, y1); q.lineTo(x2, y2); q.stroke(); } }
 function petalPath(k, x, y, a, len, w) {
   const ca = Math.cos(a), sa = Math.sin(a), tx = x + ca * len, ty = y + sa * len, nx = -sa * w, ny = ca * w, mx = x + ca * len * .5, my = y + sa * len * .5;
   k.beginPath(); k.moveTo(x, y); k.quadraticCurveTo(mx + nx, my + ny, tx, ty); k.quadraticCurveTo(mx - nx, my - ny, x, y);
@@ -280,14 +288,76 @@ function glints(pen, x, y, r, n) {
   for (let i = 0; i < n; i++) { const a = LA + R(-.7, .7), d = r * R(.25, .8); dot(pen, x + Math.cos(a) * d, y + Math.sin(a) * d, R(.5, 1.3) * pen.u, [50, 30, 98], 0, R(.5, .9)); }
 }
 function tiny(pen, x, y, r, c, cc) {
-  const k = pen.ctx, rot = R(TAU), n = rnd() < .8 ? 5 : 6; if (FF) batFlush(k);
+  const k = pen.ctx, rot = R(TAU), n = rnd() < .8 ? 5 : 6; if (FF && !LG.on) batFlush(k);
   for (let i = 0; i < n; i++) {
     const a = rot + i / n * TAU;
+    if (LG.on) { LG.ell(pen, x + Math.cos(a) * r * .56, y + Math.sin(a) * r * .56, r * .52, r * .36, a, col(pen, c, Math.cos(a - LA) * 11 + R(-4, 4), .94)); continue; }
     k.fillStyle = col(pen, c, Math.cos(a - LA) * 11 + R(-4, 4), .94);
     k.beginPath(); k.ellipse(x + Math.cos(a) * r * .56, y + Math.sin(a) * r * .56, r * .52, r * .36, a, 0, TAU); k.fill();
   }
   dot(pen, x, y, r * .26, cc, -4); dot(pen, x - r * .07, y - r * .08, r * .1, cc, 28, .8);
 }
+
+
+/* ───────────── live growth: every stroke and dot is kept as geometry and drawn fresh on the GPU every frame, so every plant
+   can sway from its own root. Each depth layer keeps one fixed order: the order in which things grew ───────────── */
+const LS = 16;      // per instance: x1 y1 x2 y2 | r g b a | rootX rootY width kind | dieStart extra seed -
+const NOROOT = -1e6, ALIVE = 1e9;
+const LG = { on: false, L: [], cc: new Map(), MAXN: 260000,
+  init() { for (let i = 0; i < 4; i++) this.L.push({ a: new Float32Array(LS * 8192), n: 0, up: 0, dmin: 1e9, dmax: -1, er: [], ends: new Map(), full: 1, dying: 0 }); this.on = true;
+    try { if (matchMedia('(pointer: coarse)').matches || Math.min(screen.width, screen.height) < 700) this.MAXN = 100000; } catch (e) {} this.MAX0 = this.MAXN; },
+  reset() { for (const s of this.L) { s.n = 0; s.up = 0; s.dmin = 1e9; s.dmax = -1; s.er.length = 0; s.ends.clear(); s.full = 1; s.dying = 0; } },
+  li(pen) { return LAYERS.indexOf(pen.layer); },
+  rgba(str) {
+    let c = this.cc.get(str); if (c) return c;
+    const m = str.match(/[\d.]+/g).map(Number);
+    if (str[0] === 'h') { const h = m[0] / 360, sa = m[1] / 100, l = m[2] / 100, q = l < .5 ? l * (1 + sa) : l + sa - l * sa, pp = 2 * l - q, f = t => { t = (t + 1) % 1; return t < 1 / 6 ? pp + (q - pp) * 6 * t : t < .5 ? q : t < 2 / 3 ? pp + (q - pp) * (2 / 3 - t) * 6 : pp; }; c = [f(h + 1 / 3), f(h), f(h - 1 / 3), m.length > 3 ? m[3] : 1]; }
+    else c = [m[0] / 255, m[1] / 255, m[2] / 255, m.length > 3 ? m[3] : 1];
+    if (this.cc.size > 60000) this.cc.clear(); this.cc.set(str, c); return c;
+  },
+  grow(s) { const b = new Float32Array(s.a.length * 2); b.set(s.a.subarray(0, s.n * LS)); s.a = b; s.full = 1; },
+  push(li, x1, y1, x2, y2, w, c, rx, ry, kind, ex) {
+    const s = this.L[li]; if (s.n - s.dying >= this.MAXN * .9 && !(s.rt > time - 6)) { s.rt = time; this.renew(s); }
+    if ((s.n + 1) * LS > s.a.length) this.grow(s);
+    const o = s.n * LS, a = s.a; a[o] = x1; a[o + 1] = y1; a[o + 2] = x2; a[o + 3] = y2; a[o + 4] = c[0]; a[o + 5] = c[1]; a[o + 6] = c[2]; a[o + 7] = c[3];
+    a[o + 8] = rx; a[o + 9] = ry; a[o + 10] = w; a[o + 11] = kind; a[o + 12] = ALIVE; a[o + 13] = ex || 0; a[o + 14] = rnd(); a[o + 15] = 0;
+    if (kind === 3) s.er.push(s.n); return s.n++;
+  },
+  dirty(s, i) { if (i < s.up) { if (i < s.dmin) s.dmin = i; if (i > s.dmax) s.dmax = i; } },
+  root(pen) { return pen.root || null; },
+  // a stroke: joined onto the stroke it continues when it runs on in the same direction, colour and width, so a stem stays a few long pieces
+  seg(pen, x1, y1, x2, y2, w, style) {
+    const li = this.li(pen), s = this.L[li], c = this.rgba(style), r = pen.root, rx = r ? r[0] : NOROOT, ry = r ? r[1] : NOROOT;
+    const key = ((x1 * 4) | 0) * 131071 + ((y1 * 4) | 0), j = s.ends.get(key);
+    if (j !== undefined && j < s.n) { const a = s.a, o = j * LS;
+      if (Math.abs(a[o + 2] - x1) < .01 && Math.abs(a[o + 3] - y1) < .01 && Math.abs(a[o + 8] - rx) < .01 && Math.abs(a[o + 9] - ry) < .01 && a[o + 12] === ALIVE && Math.abs(a[o + 10] - w) < .15 * U && Math.abs(a[o + 4] - c[0]) + Math.abs(a[o + 5] - c[1]) + Math.abs(a[o + 6] - c[2]) < .045 && Math.abs(a[o + 7] - c[3]) < .02) {
+        const dx0 = x1 - a[o], dy0 = y1 - a[o + 1], dx1 = x2 - x1, dy1 = y2 - y1, l0 = Math.hypot(dx0, dy0), l1 = Math.hypot(dx1, dy1);
+        if (l0 + l1 < 16 * U && (l0 < .01 || (dx0 * dx1 + dy0 * dy1) / (l0 * l1 + 1e-9) > .993)) { a[o + 2] = x2; a[o + 3] = y2; s.ends.delete(key); s.ends.set(((x2 * 4) | 0) * 131071 + ((y2 * 4) | 0), j); this.dirty(s, j); return j; } } }
+    const i = this.push(li, x1, y1, x2, y2, w, c, rx, ry, 0); if (s.ends.size > 30000) s.ends.clear(); s.ends.set(((x2 * 4) | 0) * 131071 + ((y2 * 4) | 0), i); return i;
+  },
+  dot(pen, x, y, r, style) { const rt = pen.root; return this.push(this.li(pen), x, y, x, y, r * 2, this.rgba(style), rt ? rt[0] : NOROOT, rt ? rt[1] : NOROOT, 0); },
+  setDot(pen, i, x, y, r) { const s = this.L[this.li(pen)], o = i * LS; if (i >= s.n) return; s.a[o] = s.a[o + 2] = x; s.a[o + 1] = s.a[o + 3] = y; s.a[o + 10] = r * 2; this.dirty(s, i); },
+  ell(pen, x, y, rx, ry, ang, style) { const rt = pen.root; return this.push(this.li(pen), x, y, x + Math.cos(ang) * rx, y + Math.sin(ang) * rx, ry * 2, this.rgba(style), rt ? rt[0] : NOROOT, rt ? rt[1] : NOROOT, 1); },
+  // a soft round patch of colour (kind 2), or a soft eraser (kind 3) that takes away what grew there before it
+  blob(li, x, y, rx, ry, inner, c, erase) { return this.push(li, x, y, rx, ry, 0, c, NOROOT, NOROOT, erase ? 3 : 2, inner); },
+  // dying: everything rooted (or lying) inside the patch browns, sags and crumbles, the middle first
+  die(li, x, y, r) { const s = this.L[li], a = s.a; let n = 0;
+    for (let i = 0; i < s.n; i++) { const o = i * LS; if (a[o + 12] !== ALIVE || a[o + 11] >= 2) continue; const px = a[o + 8] > NOROOT ? a[o + 8] : a[o], py = a[o + 8] > NOROOT ? a[o + 9] : a[o + 1], d = Math.hypot(px - x, py - y);
+      if (d < r) { a[o + 12] = time + (d / r) * 6 + rnd() * 2; this.dirty(s, i); n++; } }
+    s.dying += n; return n; },
+  // when a layer is full, its oldest growth starts its dying
+  renew(s) { const a = s.a; let k = 0; for (let i = 0; i < s.n && k < s.n * .08; i++) { const o = i * LS; if (a[o + 12] === ALIVE && a[o + 11] < 2) { a[o + 12] = time + rnd() * 8; this.dirty(s, i); k++; } } s.dying += k; this.compact(s, true); },
+  compact(s, force) {
+    const a = s.a; let j = 0, gone = 0; s.er.length = 0;
+    for (let i = 0; i < s.n; i++) { const o = i * LS, dt = a[o + 12]; if (dt !== ALIVE && time - dt > 36) { gone++; continue; } if (j !== i) a.copyWithin(j * LS, o, o + LS); if (a[j * LS + 11] === 3) s.er.push(j); j++; }
+    if (!gone && !force) return; s.n = j; s.ends.clear(); s.full = 1; s.dying = Math.max(0, s.dying - gone);
+  },
+  shift(dx, dy) { for (const s of this.L) { const a = s.a; for (let i = 0; i < s.n; i++) { const o = i * LS, k = a[o + 11]; a[o] += dx; a[o + 1] += dy; if (k < 2) { a[o + 2] += dx; a[o + 3] += dy; } if (a[o + 8] > NOROOT) { a[o + 8] += dx; a[o + 9] += dy; } } s.ends.clear(); s.full = 1; } },
+  count() { return this.L.reduce((t, s) => t + s.n, 0); },
+};
+// a pen whose strokes all bend from one root: the foot of the plant
+// something that grows out of a plant keeps that plant's root, so it moves with it; force gives a blade or a filament a root of its own
+function rooted(pen, x, y, force) { if (!LG.on || (pen.root && !force)) return pen; const q = Object.create(pen); q.root = [x, y]; return q; }
 
 /* ───────────── growth engine: everything is drawn by tips that extend, taper and branch ───────────── */
 let time = 0, vtime = 0;      // time: the garden's own clock (runs slower or faster with the speed buttons). vtime: the view's clock, always real time, for camera drift, breathing and fog
@@ -325,7 +395,12 @@ function bead(pen, x, y, r, c, dl = 0) {
 function runBeads(dt) {
   for (let i = beads.length - 1; i >= 0; i--) {
     const b = beads[i]; b.t += dt * 1.1 * (1 + eg); const t = Math.min(1, b.t), rr = b.r * (1 - (1 - t) * (1 - t)), u = b.pen.u;
-    if (rr - b.last > .35 || t >= 1) { b.last = rr;
+    if (LG.on && (rr - b.last > .2 || t >= 1)) { b.last = rr; if (!b.ix) b.ix = [];
+      for (let qi = 0; qi < b.lob.length; qi++) { const q = b.lob[qi], px = b.x + q[0] * rr, py = b.y + q[1] * rr, lr = Math.max(.3, rr * q[2]);
+        if (!b.ix[qi]) b.ix[qi] = [dot(b.pen, px, py, lr, b.c, b.dl - 9), dot(b.pen, px - lr * .14, py - lr * .16, lr * .74, b.c, b.dl - 1)];
+        else { LG.setDot(b.pen, b.ix[qi][0], px, py, lr); LG.setDot(b.pen, b.ix[qi][1], px - lr * .14, py - lr * .16, lr * .74); }
+        if (t >= 1 && lr > 1.5 * u) dot(b.pen, px - lr * .28, py - lr * .3, lr * .4, b.c, b.dl + 8, .7); } }
+    else if (!LG.on && (rr - b.last > .35 || t >= 1)) { b.last = rr;
       for (const q of b.lob) { const px = b.x + q[0] * rr, py = b.y + q[1] * rr, lr = rr * q[2];
         dot(b.pen, px, py, lr, b.c, b.dl - 9); dot(b.pen, px - lr * .14, py - lr * .16, lr * .74, b.c, b.dl - 1); if (t >= 1 && lr > 1.5 * u) dot(b.pen, px - lr * .28, py - lr * .3, lr * .4, b.c, b.dl + 8, .7); } }
     if (t >= 1) {
@@ -341,6 +416,7 @@ function runBeads(dt) {
 // shading is laid along the tube as one continuous ribbon, so no joints or rings show
 function gloss(pen, px, py, ax, ay, bx, by, ww, c, hard, cap) {
   const k = pen.ctx, sl = Math.hypot(bx - ax, by - ay) || 1, nx = -(by - ay) / sl, ny = (bx - ax) / sl, sd = (Math.cos(LA) * nx + Math.sin(LA) * ny) * ww, ox = nx * sd, oy = ny * sd, L = hard ? [[.15, .7, -2], [.26, .34, 11], [.33, .1, 26]] : [[.05, .9, -4.5], [.11, .74, -1], [.17, .56, 2.5], [.22, .38, 6], [.26, .2, 9.5]];
+  if (LG.on) { for (const q of L) { const dx = ox * q[0], dy = oy * q[0], st = col(pen, c, q[2]), w = ww * q[1]; if (cap) LG.seg(pen, px + dx, py + dy, ax + dx, ay + dy, w, st); LG.seg(pen, ax + dx, ay + dy, bx + dx, by + dy, w, st); } return; }
   pen.layer.d = 1; if (FF) batFlush(k); k.lineCap = cap ? 'round' : 'butt';
   for (const q of L) { const dx = ox * q[0], dy = oy * q[0]; k.strokeStyle = col(pen, c, q[2]); k.lineWidth = ww * q[1]; k.beginPath(); k.moveTo(px + dx, py + dy); k.lineTo(ax + dx, ay + dy); k.lineTo(bx + dx, by + dy); k.stroke(); }
   k.lineCap = 'round';
@@ -617,10 +693,15 @@ function startDecay() {
   for (let i = tips.length - 1; i >= 0; i--) { const t = tips[i]; if (t.pen.layer === l && Math.hypot(t.x - x, t.y - y) < r) { tips[i] = tips[tips.length - 1]; tips.pop(); } }
   const bl = []; for (let i = 0; i < 5; i++) bl.push([gauss() * r * .35, gauss() * r * .3, R(.45, .8)]);      // an irregular patch made of a few soft blobs, never a clean circle
   decays.push({ l, x, y, r, t: 0, D: R(22, 34), acc: 0, P: curP(), bl, sag: 0 });
+  if (LG.on) LG.die(LAYERS.indexOf(l), x, y, r * .85);
 }
 function stepDecay(d, dt) {
   d.t += dt; d.acc += dt; if (d.acc < .25) return false; d.acc = 0;
-  const p = d.t / d.D, l = d.l, k = l.ctx, u = l.pen.u, x = d.x, y = d.y, r = d.r; if (FF) batFlush(k); l.d = 1;
+  const p = d.t / d.D, l = d.l, k = l.ctx, u = l.pen.u, x = d.x, y = d.y, r = d.r; if (FF && !LG.on) batFlush(k); l.d = 1;
+  if (LG.on) {      // the geometry browns, sags and crumbles by itself (in the shader); here only the seeds and spores it lets go
+    if (p > .45) { const n = Math.round(3 + 8 * (p - .45)); for (let i = 0; i < n; i++) if (rnd() < .5) addP(x + gauss() * r * .4, y + gauss() * r * .4, 5, rnd() < .6 ? [32 + R(-6, 6), 34, R(26, 40)] : mixc(soft(d.P.hues[d.P.act[0]]), DRY, .55)); if (rnd() < .4) addP(x + gauss() * r * .4, y + gauss() * r * .4, 2, soft(d.P.hues[d.P.act[1]])); }
+    if (p < 1) return false;
+  }
   // 1 · it browns and dries: tint only what is there (source-atop), strongest in the middle
   const blobs = (fn) => { for (const b of d.bl) { const bx = x + b[0], by = y + b[1], br = r * b[2], g = k.createRadialGradient(bx, by, 0, bx, by, br); fn(g); k.fillStyle = g; k.fillRect(bx - br, by - br, br * 2, br * 2); } };
   if (p < .6) { k.save(); k.globalCompositeOperation = 'source-atop'; blobs(g => { g.addColorStop(0, `hsla(30,32%,${28 + 10 * rnd() | 0}%,.03)`); g.addColorStop(.6, 'hsla(32,30%,34%,.015)'); g.addColorStop(1, 'hsla(32,30%,34%,0)'); }); k.restore(); }
@@ -644,7 +725,7 @@ function stepDecay(d, dt) {
     if (rnd() < .4) addP(x + gauss() * r * .4, y + gauss() * r * .4, 2, soft(d.P.hues[d.P.act[1]]));
   }
   if (p >= 1) {
-    k.save(); k.globalCompositeOperation = 'destination-out'; blobs(g => { g.addColorStop(0, 'rgba(0,0,0,.7)'); g.addColorStop(.45, 'rgba(0,0,0,.35)'); g.addColorStop(1, 'rgba(0,0,0,0)'); }); k.restore();
+    if (!LG.on) { k.save(); k.globalCompositeOperation = 'destination-out'; blobs(g => { g.addColorStop(0, 'rgba(0,0,0,.7)'); g.addColorStop(.45, 'rgba(0,0,0,.35)'); g.addColorStop(1, 'rgba(0,0,0,0)'); }); k.restore(); }
     const ag = l.ag; for (let j = 0; j < GH; j++) for (let i = 0; i < GW; i++) { const cx = (i + .5) / GW * W, cy = (j + .5) / GH * H; if (Math.hypot(cx - x, cy - y) < r * .8) ag[j * GW + i] = 0; }
     for (let i = colOf(x - r); i <= colOf(x + r); i++) l.occ[i] *= .5;
     for (let i = beads.length - 1; i >= 0; i--) if (beads[i].pen.layer === l && Math.hypot(beads[i].x - x, beads[i].y - y) < r * .8) { beads[i] = beads[beads.length - 1]; beads.pop(); }
@@ -657,6 +738,8 @@ function stepDecay(d, dt) {
 // growth that starts in mid-space rises out of a pocket of mist: its foot dissolves, so it never hangs in the air
 function fogRoot(l, x, y, r, h, dir = 1, noVeil) {
   let n = 0, acc = 0; const ry = Math.max(r * .7, h * .5), rx = Math.max(r * 1.6, h * .55);
+  if (LG.on) { const li = LAYERS.indexOf(l); later(1.5, () => LG.blob(li, x, y + dir * ry * .22, rx, ry, .05, [0, 0, 0, .9], true));
+    if (!noVeil) later(10, () => { const q = [clamp(bgBot[0] * 1.1 + 30, 0, 255) / 255, clamp(bgBot[1] * 1.1 + 30, 0, 255) / 255, clamp(bgBot[2] * 1.1 + 30, 0, 255) / 255, .19]; LG.blob(li, x, y + dir * ry * .22, rx * 1.5, ry * .62, .05, q); }); return; }
   procs.push(dt => {
     acc += dt; if (acc < .7) return; acc = 0; n++; if (noVeil && n > 12) return false;
     const k = l.ctx, g = k.createRadialGradient(0, 0, 0, 0, 0, 1); if (FF) batFlush(k);
@@ -693,6 +776,7 @@ const season = { t: 0, len: 480, n: 0, grow: 1, fade: .3, front: null, count: 0,
     const r = .12 * W, inBand = (x, l) => { const q = (x - this.fx(l)) * F.dir; return q > -r && q < r; };
     if (FF) batAll();
     for (const l of LAYERS) {
+      if (LG.on) { const x = this.fx(l); LG.die(LAYERS.indexOf(l), x, H * .5, 0); continue; }
       const x = this.fx(l), k = l.ctx, g = k.createLinearGradient(x - F.dir * r, 0, x + F.dir * r, 0);      // from the trailing edge to the leading edge
       g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(.14, 'rgba(0,0,0,.22)'); g.addColorStop(.5, 'rgba(0,0,0,.1)'); g.addColorStop(1, 'rgba(0,0,0,0)');
       k.globalCompositeOperation = 'destination-out'; k.fillStyle = g; k.fillRect(x - r, -H * .1, r * 2, H * 1.3); k.globalCompositeOperation = 'source-over'; l.d = 1;
@@ -763,9 +847,7 @@ function strand(rd, x) {
   let pts = raw; for (let k = 0; k < 2; k++) { const q = [pts[0]]; for (let i = 0; i < pts.length - 1; i++) { const A = pts[i], B = pts[i + 1]; q.push([A[0] * .75 + B[0] * .25, A[1] * .75 + B[1] * .25], [A[0] * .25 + B[0] * .75, A[1] * .25 + B[1] * .75]); } q.push(pts[pts.length - 1]); pts = q; }   // round off what is left
   pts.reverse();                                        // the strand rises from the fold to its tip
   const dark = 13 * noise(x / U * .016 + rd.seed * 3, y0 / U * .006) + R(-7, 7);
-  const pen = orgPen(pen0, pts[0][0], pts[0][1], 0, Math.floor(x / (70 * U)) * 17 + rd.i * 7);
-  // now and then a live blade rises from the crest as well: drawn every frame, it is what leans when something moves
-  if (rd.layer === LAYERS[2] && rnd() < .085) { const top = pts[pts.length - 1], up = pts[pts.length - 1][1] - pts[Math.max(0, pts.length - 12)][1]; blades.add(top[0] + R(-2, 2) * u, rd.y(top[0]) + R(3, 10) * u, -PI / 2 + rd.lean * .7 + jit * .8, R(26, 72) * u, R(1.6, 2.4) * u, [c2[0], c2[1], c2[2] - 8], lite(c1, 10), { dot: powder ? rd.fr : rnd() < .4 ? c1 : null, delay: R(0, 4) }); }
+  const pen = orgPen(pen0, pts[0][0], pts[0][1]);
   tip({ pen, x: pts[0][0], y: pts[0][1], a: -PI / 2, path: pts, len, w: 1.9 * u, tp: .3, c: [c2[0], c2[1], c2[2] - 8], c2: lite(c1, 10), cp: 1.25, dl: dark, sp: R(70, 110),
     end: t => { dot(pen, t.x, t.y, R(.8, 1.4) * u, powder ? rd.fr : c1, R(14, 26)); if (powder && rnd() < .55) froth(pen, t.x, t.y, rd.fr, u); } });
 }
@@ -773,10 +855,9 @@ function strand(rd, x) {
 function froth(pen, x, y, c, u) { const n = RI(2, 5); for (let i = 0; i < n; i++) dot(pen, x + gauss() * 3.2 * u, y + gauss() * 2.6 * u - 1.5 * u, R(.45, .9) * u, c, R(10, 30), R(.6, 1)); }
 // loose wires: a few very thin long stems that arc up and over the grass in mixed colours
 function wires(l, x, y) {
-  const pen = l.pen, u = pen.u, pal = palette(), P = curP(), n = RI(3, 7), cs = [pal.stem, P.fr || P.hues[P.act[1]], pick(pal.pin), lite(pal.stem, 18), soft(P.hues[P.act[0]])];
-  for (let i = 0; i < n; i++) { const s = rnd() < .5 ? 1 : -1, k = R(.003, .012), c = pick(cs);
-    if (l === LAYERS[2] && rnd() < .6) { const L = R(120, 340) * u; blades.add(x + gauss() * 12 * u, y + R(0, 6) * u, -PI / 2 + s * R(0, .5), L, R(1, 1.5) * u, c, lite(c, 10), { curl: s * k * L / u * .9, delay: R(0, 3), k: 1.3 }); continue; }
-    tip({ pen, x: x + gauss() * 12 * u, y: y + R(0, 6) * u, a: -PI / 2 + s * R(0, .5), len: R(120, 340) * u, w: R(.6, 1) * u, tp: .3, c, c2: lite(c, 10), sp: R(26, 40), wander: .02, delay: R(0, 3), steer(t, kk) { t.a += s * k * kk; } }); }
+  const pen0 = l.pen, u = pen0.u, pal = palette(), P = curP(), n = RI(3, 7), cs = [pal.stem, P.fr || P.hues[P.act[1]], pick(pal.pin), lite(pal.stem, 18), soft(P.hues[P.act[0]])];
+  for (let i = 0; i < n; i++) { const s = rnd() < .5 ? 1 : -1, k = R(.003, .012), c = pick(cs), wx = x + gauss() * 12 * u, wy = y + R(0, 6) * u, pen = rooted(pen0, wx, wy, 1);
+    tip({ pen, x: wx, y: wy, a: -PI / 2 + s * R(0, .5), len: R(120, 340) * u, w: R(.6, 1) * u, tp: .3, c, c2: lite(c, 10), sp: R(26, 40), wander: .02, delay: R(0, 3), steer(t, kk) { t.a += s * k * kk; } }); }
 }
 PALETTES[0].fr = [272, 50, 72];
 // a grass bush: a dense clump of combed filaments from one cluster of roots, fanning out. The back of the clump grows first and darker,
@@ -787,8 +868,7 @@ function grassBush(l, x, y, s) {
   for (let i = 0; i < n; i++) {
     const dz = rnd(), g = clamp(gauss() * .55, -1.2, 1.2), bx = x + g * rx + gauss() * 4 * u, by = y + (dz - .5) * 16 * u * s + Math.abs(g) * 6 * u;      // dz: 0 at the back, 1 at the front
     const a = -PI / 2 + g * R(.6, 1) + gauss() * .12, len = h * (1 - .45 * Math.abs(g)) * R(.55, 1.05) * (.8 + .3 * (1 - dz)), dk = (1 - dz) * 12, c1 = rnd() < .3 ? mixc(rd.c1, rd.fr, R(.2, .6)) : rd.c1;
-    if (l === LAYERS[2] && dz > .55 && rnd() < .14) { blades.add(bx, by, a, len, R(1.4, 2.2) * u, [rd.c2[0], rd.c2[1], rd.c2[2] - 6 - dk], lite(c1, 8 - dk * .5), { curl: g * R(.1, .35), dot: rnd() < .3 ? (fl ? rd.fr : c1) : null, delay: dz * 3 + R(0, 1.2) }); continue; }
-    tip({ pen, x: bx, y: by, a, len, w: R(1.3, 2.2) * u, tp: .45, c: [rd.c2[0], rd.c2[1], rd.c2[2] - 6 - dk], c2: lite(c1, 8 - dk * .5), cp: 1.2, sp: R(40, 70), wander: .04, turn: g * R(.002, .006), droop: g * .004, delay: dz * 3 + R(0, 1.2),
+    tip({ pen: rooted(pen, bx, by, 1), x: bx, y: by, a, len, w: R(1.3, 2.2) * u, tp: .45, c: [rd.c2[0], rd.c2[1], rd.c2[2] - 6 - dk], c2: lite(c1, 8 - dk * .5), cp: 1.2, sp: R(40, 70), wander: .04, turn: g * R(.002, .006), droop: g * .004, delay: dz * 3 + R(0, 1.2),
       end: rnd() < .3 ? t => { dot(pen, t.x, t.y, R(.8, 1.5) * u, fl ? rd.fr : c1, 14); if (rnd() < .4) froth(pen, t.x, t.y, fl ? rd.fr : lite(c1, 10), u); } : null });
   }
   if (rnd() < .35) wires(l, x, y);
@@ -1321,8 +1401,8 @@ const seasons = {
   kind() { return this.cur.kind(); },
 };
 
-const STYLES = [terrain, vines, mix, mix2, mycelium, seasons];
-let style = terrain, sIdx = 0, bgSlow = false;
+const STYLES = [seasons, terrain, vines, mycelium, mix2, mix];
+let style = seasons, sIdx = 0, bgSlow = false;
 
 // click: a handful of sprouts reaching for the pointer, always rooted in something
 function sprouts(x, y, cnt) {
@@ -1348,42 +1428,6 @@ const hs = (c, a = 1, dl = 0, ds = 0) => `hsla(${c[0] | 0},${clamp(c[1] + ds, 0,
 function hsl2rgb(c) { const h = c[0] / 360, s = c[1] / 100, l = c[2] / 100, k = n => (n + h * 12) % 12, a = s * Math.min(l, 1 - l); const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1)); return [f(0), f(8), f(4)]; }
 const DRY = [34, 38, 52];
 const GRAIN = (() => { const c = document.createElement('canvas'); c.width = c.height = 96; const g = c.getContext('2d'), d = g.createImageData(96, 96); for (let i = 0; i < d.data.length; i += 4) { const v = rnd() < .5 ? 0 : 255; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = rnd() * 120; } g.putImageData(d, 0, 0); return lx.createPattern(c, 'repeat'); })();
-/* live blades: a share of the grass, the bush filaments and the loose wires is drawn fresh every frame instead of painted once,
-   so each blade can lean on its own soft spring when the cursor or the camera stirs the air. They grow, stand, then brown, sag and crumble into seeds */
-const blades = {
-  list: [], MAX: 1200, BROWN: [30, 34, 36],
-  reset() { this.list.length = 0; },
-  add(x, y, a, L, w, c1, c2, o = {}) {
-    if (this.list.length >= this.MAX || L < 6 * U) return;
-    this.list.push({ x, y, a, L, w, c1, c2, dot: o.dot || null, t: -(o.delay || 0), G: Math.max(1.5, L / (U * R(40, 70))), hold: R(55, 110), D: R(9, 15), ph: R(TAU), f: R(.6, 1.3), curl: o.curl === undefined ? R(-.35, .35) : o.curl, swd: 0, swv: 0, swT: undefined, wn: R(1.5, 2.6), k: o.k || 1, crumb: 0 });
-  },
-  update(dt) {
-    for (let i = this.list.length - 1; i >= 0; i--) { const b = this.list[i]; b.t += dt * (1 + eg * .5); if (b.t > b.G + b.hold + b.D) { this.list[i] = this.list[this.list.length - 1]; this.list.pop(); } }
-  },
-  draw(k) {
-    const N = 7;
-    for (const b of this.list) {
-      if (b.t <= 0) continue;
-      const g = smooth(Math.min(1, b.t / b.G)), d = clamp((b.t - b.G - b.hold) / b.D, 0, 1), cr = clamp((d - .55) / .45, 0, 1);
-      let L = b.L * g * (1 - cr * .85); if (L < 1.5 * U) continue;
-      // the spring: the air pushes across the blade at its middle; the blade follows slowly and settles, never jumps
-      const mx = b.x + Math.cos(b.a) * L * .6, my = b.y + Math.sin(b.a) * L * .6, w = clamp((my / H * GH) | 0, 0, GH - 1) * GW + clamp((mx / W * GW) | 0, 0, GW - 1);
-      const wt = Math.tanh((-WX[w] * Math.sin(b.a) + WY[w] * Math.cos(b.a)) * 1.3 / .6) * .6 * b.k, sdt = Math.min(.05, Math.max(0, vtime - (b.swT === undefined ? vtime : b.swT))); b.swT = vtime;
-      if (sdt > 0) { b.swv += ((wt - b.swd) * b.wn * b.wn - 2 * .75 * b.wn * b.swv) * sdt; b.swv = clamp(b.swv, -1.5, 1.5); b.swd += b.swv * sdt; }
-      const sway = b.swd + Math.sin(vtime * (.5 + b.f * .35) + b.ph) * .05 * b.k, droop = d * 1.3 * (Math.cos(b.a) >= 0 ? 1 : -1);
-      // its centre line, bending more towards the tip
-      let x = b.x, y = b.y, a = b.a; const ds = L / N, P = [[x, y, a]];
-      for (let i = 0; i < N; i++) { const s = (i + .5) / N; a = b.a + b.curl * s + sway * s * s * 2.2 + droop * s * s; x += Math.cos(a) * ds; y += Math.sin(a) * ds; P.push([x, y, a]); }
-      const ww = b.w * (.6 + .4 * g), Lf = [], Rt = [];
-      for (let i = 0; i <= N; i++) { const s = i / N, hw = ww * (1 - .88 * s) * .5, q = P[i], nx = -Math.sin(q[2]) * hw, ny = Math.cos(q[2]) * hw; Lf.push(q[0] + nx, q[1] + ny); Rt.push(q[0] - nx, q[1] - ny); }
-      k.beginPath(); k.moveTo(Lf[0], Lf[1]); for (let i = 2; i < Lf.length; i += 2) k.lineTo(Lf[i], Lf[i + 1]); for (let i = Rt.length - 2; i >= 0; i -= 2) k.lineTo(Rt[i], Rt[i + 1]); k.closePath();
-      const c1 = d ? mixc(b.c1, this.BROWN, d) : b.c1, c2 = d ? mixc(b.c2, [36, 40, 52], d) : b.c2, gr = k.createLinearGradient(b.x, b.y, x, y);
-      gr.addColorStop(0, `hsla(${c1[0] | 0},${c1[1] | 0}%,${c1[2] | 0}%,.96)`); gr.addColorStop(1, `hsla(${c2[0] | 0},${c2[1] | 0}%,${c2[2] | 0}%,.96)`); k.fillStyle = gr; k.fill();
-      if (b.dot && g > .98 && !cr) { const c = d ? mixc(b.dot, this.BROWN, d) : b.dot; k.fillStyle = `hsla(${c[0] | 0},${c[1] | 0}%,${Math.min(95, c[2] + 14) | 0}%,.95)`; k.beginPath(); k.arc(x, y, ww * .55 + .5 * U, 0, TAU); k.fill(); }
-      if (cr > 0 && b.crumb < cr * 4 && GLX) { b.crumb++; addP(x, y, 5, b.dot || [36, 40, 52]); }      // crumbling: it lets go of a few seeds
-    }
-  },
-};
 const life = {
   list: [], petals: [], t: 2, arr: null, order: 0, tidy: 0, phase: 0, plan: null, pt: 0,
   reset() { this.list.length = 0; this.petals.length = 0; this.t = R(2, 4); },      // an empty page: every living plant starts from its seed
@@ -1524,7 +1568,6 @@ const life = {
     const k = lx, vw = Math.round(W * DPR), vh = Math.round(H * DPR);
     if (liveCv.width !== vw || liveCv.height !== vh) { liveCv.width = vw; liveCv.height = vh; }
     k.setTransform(1, 0, 0, 1, 0, 0); k.clearRect(0, 0, vw, vh); k.setTransform(DPR, 0, 0, DPR, 0, 0);
-    blades.draw(k);
     this.list.sort((p, q) => p.z - q.z);
     for (const b of this.list) this.one(k, b);
     for (const p of this.petals) {      // the petal turns over as it falls: drawn narrower when seen edge-on
@@ -1684,7 +1727,7 @@ vec3 finish(vec3 c, vec2 uv){ vec2 q = uv - vec2(.5, .46); c *= 1. - dot(q, q) *
   c += n * .042 + st * .03 * (.4 + .6 * dot(c, vec3(.33))); return c; }
 `;
 const FS_COMP = FS_COMMON + `
-uniform sampler2D uBg, uL0, uL1, uL2, uL3, uGlyph, uA0, uA1, uA2, uA3, uLv, uPt; uniform vec4 uBlur; uniform int uLook; uniform float uTidy; uniform vec2 uSp;
+uniform sampler2D uBg, uL0, uL1, uL2, uL3, uGlyph, uA0, uA1, uA2, uA3, uLv, uPt; uniform vec4 uBlur; uniform int uLook; uniform float uTidy; uniform vec2 uPix; uniform vec2 uSp;
 float ib(vec2 u){ vec2 e = smoothstep(0., .01, u) * smoothstep(1., .99, u); return e.x * e.y; }
 vec4 gR = vec4(0.); vec2 gO0 = vec2(0.), gO1 = vec2(0.), gO2 = vec2(0.), gO3 = vec2(0.); int gL = 0;      // extra turn and drift per layer (0 far .. 3 near), set by a look
 vec2 camUv(vec2 uv, float depth, float zoom){ float as = uRes.x / uRes.y; vec2 p = uv - .5; p.x *= as; float a = uCam.z * depth + gR[gL], c = cos(a), s = sin(a); p = vec2(c * p.x - s * p.y, s * p.x + c * p.y) / zoom; p.x /= as;
@@ -1810,9 +1853,18 @@ vec3 wcol(vec2 uv){
 
 // Pixel: big pixels, a few levels per colour, ordered dither between them
 const float BY[16] = float[16](0., 8., 2., 10., 12., 4., 14., 6., 3., 11., 1., 9., 15., 7., 13., 5.);
+const float BC[16] = float[16](12., 5., 6., 13., 4., 0., 1., 7., 11., 3., 2., 8., 15., 10., 9., 14.);
+float pxTh(vec2 cell, int k){
+  int x = int(mod(cell.x, 4.)), y = int(mod(cell.y, 4.));
+  if (k == 1) { float a = mod(cell.x + cell.y, 4.), b = mod(cell.x - cell.y, 4.); return a < .5 ? .08 : b < .5 ? .3 : .55 + BY[y * 4 + x] / 40.; }   // cross-hatch
+  if (k == 2) { float a = mod(cell.x + cell.y, 5.); return (a + .5) / 5.; }                                                                     // diagonal lines
+  if (k == 3) return (mod(cell.y, 3.) + .5) / 3. * .9 + fract(cell.x * .37) * .1;                                                             // scanlines
+  if (k == 4) return (BC[y * 4 + x] + .5) / 16.;                                                                                               // halftone dots
+  if (k == 5) return fract(sin(dot(cell, vec2(12.9898, 78.233))) * 43758.5453);                                                                // grain
+  return (BY[y * 4 + x] + .5) / 16.; }                                                                                                         // ordered (Bayer)
 vec3 pixel(vec2 uv){
-  float cs = max(2., floor(uRes.y / 230.)); vec2 cell = floor(uv * uRes / cs); vec3 c = scene((cell + .5) * cs / uRes);
-  int x = int(mod(cell.x, 4.)), y = int(mod(cell.y, 4.)); float th = (BY[y * 4 + x] + .5) / 16. - .5;
+  float cs = max(1., uPix.x); vec2 cell = floor(uv * uRes / cs); vec3 c = scene((cell + .5) * cs / uRes);
+  float th = pxTh(cell, int(uPix.y + .5)) - .5;
   return floor(c * 5. + th + .5) / 5.; }
 
 void main(){
@@ -1855,26 +1907,123 @@ function glSetup() {
     a *= vC.a; if (a < .002) discard; o = vec4(vC.rgb * a, a * (vK > 4.5 ? 1. : .8)); }`;
   const pp = gl.createProgram(); gl.attachShader(pp, sh(gl.VERTEX_SHADER, PVS)); gl.attachShader(pp, sh(gl.FRAGMENT_SHADER, PFS)); gl.linkProgram(pp); if (!gl.getProgramParameter(pp, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(pp));
   X.pp = { p: pp, uG: gl.getUniformLocation(pp, 'uG'), uD: gl.getUniformLocation(pp, 'uD'), uMx: gl.getUniformLocation(pp, 'uMx') }; X.pmax = gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE)[1] || 64;
+
+  // live growth: instanced strokes, dots, petals and soft patches, bent from their roots by a smoothed wind field
+  const GVS = `#version 300 es
+  precision highp float;
+  layout(location = 0) in vec2 aQ; layout(location = 1) in vec4 aP; layout(location = 2) in vec4 aC; layout(location = 3) in vec4 aR; layout(location = 4) in vec4 aD;
+  uniform vec2 uS; uniform float uT, uG, uK, uAA, uSw; uniform sampler2D uW; uniform vec3 uDry;
+  out vec2 vP, vA, vB, vL, vRd; out float vR, vIn; out vec4 vC; flat out float vK;
+  float h1(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+  vec2 bend(vec2 p, vec2 r, float dy){
+    if (r.x < -1e5) return p;
+    vec2 d = p - r; float L = length(d); if (L < .01) return p;
+    float sd = h1(floor(r * .5));
+    vec2 w = texture(uW, clamp((r + d * .7) / uS, 0., 1.)).xy;
+    float own = sin(uT * (.42 + .4 * sd) + sd * 6.283) * .07 + sin(uT * (1.1 + .5 * fract(sd * 7.)) + sd * 17.) * .022;
+    float g = L * L / (L + 55. * uK) / (1. + L / (190. * uK));
+    vec2 o = (w * uSw + vec2(own, own * .2)) * g * .55;
+    return p + o + vec2(0., dy * L);
+  }
+  void main(){
+    float kind = aR.w, w = aR.z; vec4 c = aC; float dy = 0.;
+    if (aD.x < 1e8) { float pr = (uG - aD.x) / (22. + 12. * aD.z);
+      if (pr > 0.) { c.rgb = mix(c.rgb, uDry * (.75 + .5 * fract(aD.z * 5.1)), clamp(pr / .55, 0., 1.) * .8); dy = .14 * smoothstep(.12, .8, pr); w *= 1. - smoothstep(.4 + .45 * fract(aD.z * 9.7), 1., pr); c.a *= 1. - smoothstep(.96, 1., pr); } }
+    vK = kind; vIn = aD.y; vec2 Q;
+    if (kind < .5) {      // a stroke with round ends
+      vec2 A = bend(aP.xy, aR.xy, dy), B = bend(aP.zw, aR.xy, dy), dd = B - A; float l = length(dd); vec2 t = l > 1e-4 ? dd / l : vec2(1., 0.), n = vec2(-t.y, t.x);
+      float r = w * .5, re = max(r, uAA * .5); c.a *= min(1., r / re); float m = re + uAA;
+      Q = mix(A, B, aQ.x * .5 + .5) + t * aQ.x * m + n * aQ.y * m; vA = A; vB = B; vR = re;
+    } else if (kind < 1.5) {      // a petal: an ellipse
+      vec2 A = bend(aP.xy, aR.xy, dy), M = aP.zw - aP.xy; float rx = max(length(M), .1), ry = max(w * .5, .1); vec2 t = M / rx, n = vec2(-t.y, t.x);
+      vec2 e = vec2(rx, ry) + uAA; vL = aQ * e; vRd = vec2(rx, ry); Q = A + t * vL.x + n * vL.y;
+    } else {      // a soft patch, or a soft eraser
+      vec2 e = aP.zw; vL = aQ * e; vRd = e; Q = aP.xy + vL;
+    }
+    vC = c; vP = Q; gl_Position = vec4(Q / uS * 2. - 1., 0., 1.);
+  }`;
+  const GFS = `#version 300 es
+  precision highp float;
+  in vec2 vP, vA, vB, vL, vRd; in float vR, vIn; in vec4 vC; flat in float vK; uniform float uAA; out vec4 o;
+  void main(){ float a;
+    if (vK < .5) { vec2 pa = vP - vA, ba = vB - vA; float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-6), 0., 1.); a = clamp(.5 - (length(pa - ba * h) - vR) / uAA, 0., 1.); }
+    else if (vK < 1.5) { float q = length(vL / vRd); a = clamp(.5 - (q - 1.) * min(vRd.x, vRd.y) / uAA, 0., 1.); }
+    else { float q = length(vL / vRd); a = clamp(1. - (q - vIn) / (1. - vIn), 0., 1.); a = vK > 2.5 ? a * a * (3. - 2. * a) : a; }
+    a *= vC.a; if (a < .003) discard;
+    o = vK > 2.5 ? vec4(0., 0., 0., a) : vec4(vC.rgb * a, a); }`;
+  { const gp = gl.createProgram(); gl.attachShader(gp, sh(gl.VERTEX_SHADER, GVS)); gl.attachShader(gp, sh(gl.FRAGMENT_SHADER, GFS)); gl.linkProgram(gp); if (!gl.getProgramParameter(gp, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(gp));
+    const U_ = {}; for (const n of ['uS', 'uT', 'uG', 'uK', 'uAA', 'uSw', 'uW', 'uDry']) U_[n] = gl.getUniformLocation(gp, n);
+    X.gp = { p: gp, u: U_ }; X.gq = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, X.gq); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+    X.gl_ = []; for (let i = 0; i < 4; i++) { const vao = gl.createVertexArray(), b = gl.createBuffer(); gl.bindVertexArray(vao); gl.bindBuffer(gl.ARRAY_BUFFER, X.gq); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+      gl.bindBuffer(gl.ARRAY_BUFFER, b); for (let k = 0; k < 4; k++) { gl.enableVertexAttribArray(1 + k); gl.vertexAttribDivisor(1 + k, 1); } gl.bindVertexArray(null); X.gl_.push({ vao, b, cap: 0, tw: 0, th: 0 }); }
+    X.wt = mk(gl.LINEAR, gl.CLAMP_TO_EDGE); X.gfbo = gl.createFramebuffer(); }
   X.vao = gl.createVertexArray(); gl.bindVertexArray(X.vao); X.pb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, X.pb); gl.bufferData(gl.ARRAY_BUFFER, PV.byteLength, gl.DYNAMIC_DRAW);
   gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 32, 0); gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 32, 16); gl.bindVertexArray(null); gl.bindBuffer(gl.ARRAY_BUFFER, vb);
   return X;
 }
-try { GLX = glSetup(); } catch (e) { GLX = null; }
+try { GLX = glSetup(); } catch (e) { GLX = null; console.error(e); }
+if (GLX && GLX.gp && !/[?&]live=0/.test(location.search)) LG.init();
 if (GLX) stage.classList.add('gl');
 let camX = 0, camY = 0, camR = 0; let calmK = 1;
+
+const SWX = new Float32Array(GW * GH), SWY = new Float32Array(GW * GH), SVX = new Float32Array(GW * GH), SVY = new Float32Array(GW * GH), SWT = new Float32Array(GW * GH * 2);
+function swayStep(dt) {
+  dt = Math.min(dt, .05); if (!dt) return; const wn = 2.1, z = .7;
+  for (let i = 0; i < SWX.length; i++) {
+    const tx = Math.tanh(WX[i] * 1.6), ty = Math.tanh(WY[i] * 1.6) * .6;
+    SVX[i] += ((tx - SWX[i]) * wn * wn - 2 * z * wn * SVX[i]) * dt; SVY[i] += ((ty - SWY[i]) * wn * wn - 2 * z * wn * SVY[i]) * dt; SWX[i] += SVX[i] * dt; SWY[i] += SVY[i] * dt;
+    SWT[i * 2] = SWX[i]; SWT[i * 2 + 1] = SWY[i];
+  }
+}
+let lgFrame = 0;
+function lgRender(X, gl) {
+  const P = X.gp, u = P.u; lgFrame++;
+  gl.activeTexture(gl.TEXTURE13); gl.bindTexture(gl.TEXTURE_2D, X.wt); gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG16F, GW, GH, 0, gl.RG, gl.FLOAT, SWT);
+  gl.useProgram(P.p); gl.uniform2f(u.uS, W, H); gl.uniform1f(u.uT, vtime); gl.uniform1f(u.uG, time); gl.uniform1f(u.uK, U); gl.uniform1i(u.uW, 13); gl.uniform1f(u.uSw, 1); gl.uniform3f(u.uDry, 34 / 255 * 2.2, 30 / 255 * 2.2, 24 / 255 * 2.2);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, X.gfbo); gl.enable(gl.BLEND);
+  const big = LG.count() > 220000;
+  for (let i = 0; i < 4; i++) {
+    const s = LG.L[i], G = X.gl_[i], l = LAYERS[i], tw = l.cv.width, th = l.cv.height;
+    if (big && G.tw === tw && (i === 0 || i === 3) && (lgFrame & 1)) continue;      // far and near layers are soft anyway: every other frame is enough when the garden is very full
+    // upload what is new or changed
+    gl.bindBuffer(gl.ARRAY_BUFFER, G.b);
+    if (s.full || s.a.length > G.cap) { gl.bufferData(gl.ARRAY_BUFFER, s.a, gl.DYNAMIC_DRAW); G.cap = s.a.length; s.full = 0; s.up = s.n; s.dmin = 1e9; s.dmax = -1; }
+    else { if (s.dmax >= s.dmin) { gl.bufferSubData(gl.ARRAY_BUFFER, s.dmin * LS * 4, s.a, s.dmin * LS, (s.dmax - s.dmin + 1) * LS); s.dmin = 1e9; s.dmax = -1; }
+      if (s.n > s.up) { gl.bufferSubData(gl.ARRAY_BUFFER, s.up * LS * 4, s.a, s.up * LS, (s.n - s.up) * LS); s.up = s.n; } }
+    // the layer's picture
+    gl.activeTexture(gl.TEXTURE1 + i); gl.bindTexture(gl.TEXTURE_2D, X.tex[1 + i]);
+    if (G.tw !== tw || G.th !== th) { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, tw, th, 0, gl.RGBA, gl.UNSIGNED_BYTE, null); G.tw = tw; G.th = th; }
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, X.tex[1 + i], 0);
+    gl.viewport(0, 0, tw, th); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.uniform1f(u.uAA, W / tw);
+    gl.bindVertexArray(G.vao);
+    const at = st => { for (let k = 0; k < 4; k++) gl.vertexAttribPointer(1 + k, 4, gl.FLOAT, false, LS * 4, st * LS * 4 + k * 16); };
+    let st = 0; const ends = s.er.concat([s.n]);
+    for (const e of ends) {
+      if (e > st) { at(st); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, e - st); }
+      if (e < s.n) { at(e); gl.blendFunc(gl.ZERO, gl.ONE_MINUS_SRC_ALPHA); gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, 1); }
+      st = e + 1;
+    }
+    gl.bindVertexArray(null);
+  }
+  gl.disable(gl.BLEND); gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  // now and then: drop what has finished dying
+  if (lgFrame % 240 === 0) for (const s of LG.L) if (s.dying > 2000 || s.dying > s.n * .1) LG.compact(s);
+}
 function glRender(dt) {
   const X = GLX, gl = X.gl, draw = !window.__noDraw, vw = Math.round(W * DPR), vh = Math.round(H * DPR);
   if (view.width !== vw || view.height !== vh) { view.width = vw; view.height = vh; for (const l of LAYERS) l.d = 1; }
   // the viewport camera drifts and turns very slowly, all the time; the pointer nudges it a little
   camX = Math.sin(vtime * .05) * .8 + Math.sin(vtime * .021 + 1.3) * .4 + parX * .5; camY = Math.cos(vtime * .041) * .7 + parY * .4; camR = Math.sin(vtime * .027) * .014 + Math.sin(vtime * .011 + 2.) * .008; calmK += ((window.__calm ? 0 : 1) - calmK) * Math.min(1, dt * .6); camX *= calmK; camY *= calmK; camR *= calmK;
-  windStep(dt);
+  windStep(dt); if (LG.on) swayStep(dt);
   gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, X.tex[0]); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, bgCv);
   gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false); gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
   const common = pr => { gl.useProgram(pr.p); gl.uniform2f(pr.u.uRes, vw, vh); gl.uniform1f(pr.u.uT, vtime); gl.uniform3f(pr.u.uCam, camX, camY, camR); gl.uniform1i(pr.u.uE, 5); };
   if (!draw) return;
   gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
-  for (let i = 0; i < 4; i++) { const l = LAYERS[i]; if (l.d || !l.up) { gl.activeTexture(gl.TEXTURE1 + i); gl.bindTexture(gl.TEXTURE_2D, X.tex[1 + i]); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, l.cv);
+  if (LG.on) lgRender(X, gl);
+  else for (let i = 0; i < 4; i++) { const l = LAYERS[i]; if (l.d || !l.up) { gl.activeTexture(gl.TEXTURE1 + i); gl.bindTexture(gl.TEXTURE_2D, X.tex[1 + i]); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, l.cv);
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true); l.d = 0; l.up = 1; } }
   gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
   for (let i = 0; i < 4; i++) { gl.activeTexture(gl.TEXTURE1 + i); gl.bindTexture(gl.TEXTURE_2D, X.tex[1 + i]); gl.activeTexture(gl.TEXTURE7 + i); gl.bindTexture(gl.TEXTURE_2D, X.atex[i]); }
@@ -1889,23 +2038,25 @@ function glRender(dt) {
   gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.activeTexture(gl.TEXTURE12); gl.bindTexture(gl.TEXTURE_2D, X.ptex);
   gl.viewport(0, 0, vw, vh); common(X.comp); const u = X.comp.u; gl.uniform1i(u.uLv, 11); gl.uniform1i(u.uPt, 12);
   gl.uniform1i(u.uBg, 0); gl.uniform1i(u.uL0, 1); gl.uniform1i(u.uL1, 2); gl.uniform1i(u.uL2, 3); gl.uniform1i(u.uL3, 4); gl.uniform1i(u.uGlyph, 6); gl.uniform1i(u.uA0, 7); gl.uniform1i(u.uA1, 8); gl.uniform1i(u.uA2, 9); gl.uniform1i(u.uA3, 10); gl.uniform2f(u.uSp, SPAN / W, SPAN / H);
-  { const bk = .3 + .7 * calmK; gl.uniform4f(u.uBlur, 2.8 * U * DPR * bk, .5 * U * DPR * bk, 0, 8 * U * DPR * bk); } gl.uniform1i(u.uLook, look); gl.uniform1f(u.uTidy, life.tidy);
+  { const bk = .3 + .7 * calmK; gl.uniform4f(u.uBlur, 2.8 * U * DPR * bk, .5 * U * DPR * bk, 0, 8 * U * DPR * bk); } gl.uniform1i(u.uLook, look); gl.uniform1f(u.uTidy, life.tidy); gl.uniform2f(u.uPix, Math.max(1, Math.round(pixSz * DPR)), pixPat);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
 
 /* ───────────── looks: the same garden, rendered in another way. Normal is the default ───────────── */
-{ const opts = [['Wild', null], ['Grid', 'grid'], ['Rows', 'rows'], ['Line', 'line']], bs = [];
-  const ob = document.createElement('button'); ob.type = 'button'; ob.className = 'mini';
-  const upd = () => { bs.forEach((b, i) => b.classList.toggle('active', opts[i][1] === life.arr)); ob.textContent = 'by ' + life.ORD[life.order].toLowerCase(); ob.style.display = life.arr ? '' : 'none'; };
-  opts.forEach(([n, v]) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = n; b.title = v ? 'Set the living plants out in ' + (v === 'grid' ? 'a grid' : v === 'line' ? 'a line' : 'two rows') + ' (G)' : 'Let the garden grow wild again (G)'; b.addEventListener('click', () => life.setArr(v)); $('gArr').appendChild(b); bs.push(b); });
-  ob.title = 'Order: colour, size, kind or height (O)'; ob.addEventListener('click', () => { life.order = (life.order + 1) % life.ORD.length; if (life.arr) life.setArr(life.arr); upd(); }); $('gArr').appendChild(ob);
+{ const opts = [['Wild', null], ['Grid', 'grid']], bs = [];
+  const upd = () => { bs.forEach((b, i) => b.classList.toggle('active', opts[i][1] === life.arr)); };
+  opts.forEach(([n, v]) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = n; b.title = v ? 'Set the living plants out in ' + 'a grid' + ' (G)' : 'Let the garden grow wild again (G)'; b.addEventListener('click', () => life.setArr(v)); $('gArr').appendChild(b); bs.push(b); });
   life.ui = upd; upd(); }
-const LOOKS = ['Normal', 'ASCII', 'Space', 'Underwater', 'Botanical', 'VHS', 'Riso', 'Watercolour', 'Pixel'], LORD = [0, 2, 3, 4, 5, 6, 7, 8, 1], lookBtns = []; let look = 0;
+let pixSz = 4, pixPat = 0;
+const LOOKS = ['Normal', 'ASCII', 'Space', 'Underwater', 'Botanical', 'VHS', 'Riso', 'Watercolour', 'Pixel'], LORD = [0, 2, 3, 5, 6, 7, 8, 1], lookBtns = []; let look = 0;
 // the logo takes a brand colour pair that suits each look: [mark, tile]
-const LOGO = [['#ff6446', '#f2f2f2'], ['#8fe3cf', '#10131a'], ['#b2cbff', '#3c2da0'], ['#ff6446', '#b2cbff'], ['#3c2da0', '#f4efe3'], ['#f2e291', '#1b1230'], ['#ff6446', '#f2e291'], ['#ff6446', '#f4efe3'], ['#f2f2f2', '#3c2da0']];
-function setLook(i) { look = i; lookBtns.forEach(b => b.classList.toggle('active', +b.dataset.i === i)); const lg = $('logo'), c = LOGO[i] || LOGO[0]; if (lg) { lg.style.color = c[0]; lg.style.background = c[1]; } }
+function setLook(i) { look = i; lookBtns.forEach(b => b.classList.toggle('active', +b.dataset.i === i)); const g = $('gPix'); if (g) g.style.display = i === 8 ? '' : 'none'; }
 if (GLX) { LORD.forEach(i => { const n = LOOKS[i], b = document.createElement('button'); b.type = 'button'; b.textContent = n; b.dataset.i = i; b.title = n + ' (L to cycle)'; if (i === 1 || i === 8) b.className = 'mini'; b.addEventListener('click', () => setLook(look === i && b.className === 'mini' ? 0 : i)); $('gLook').appendChild(b); lookBtns.push(b); }); setLook(0); }
 else { $('gLook').style.display = 'none'; }
+{ const pats = ['Ordered', 'Cross-hatch', 'Diagonal', 'Scanlines', 'Halftone', 'Grain'], bs = [];
+  const upd = () => bs.forEach((b, i) => b.classList.toggle('active', i === pixPat));
+  pats.forEach((n, i) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'mini'; b.textContent = n; b.title = 'Pixel pattern: ' + n; b.addEventListener('click', () => { pixPat = i; upd(); }); $('gPat').appendChild(b); bs.push(b); }); upd();
+  const r = $('pixR'), v = $('pixV'); r.value = pixSz; v.textContent = pixSz; r.addEventListener('input', () => { pixSz = +r.value; v.textContent = pixSz; }); }
 
 /* ───────────── input: pointer ───────────── */
 const ptr = { x: 0, y: 0, px: 0, py: 0, has: false, glow: 0, seen: -99, ax: 0, ay: 0, vx: 0, vy: 0, sx: 0, sy: 0, out: false };
@@ -2014,11 +2165,11 @@ function fullscreen() {
     else { const p = stage.requestFullscreen ? stage.requestFullscreen() : (stage.webkitRequestFullscreen && stage.webkitRequestFullscreen()); if (p && p.catch) p.catch(() => toast('Fullscreen is blocked here: open the page in its own tab')); }
   } catch (e) { toast('Fullscreen is blocked here: open the page in its own tab'); }
 }
-function clearAll() { BAT.clear(); for (const l of LAYERS) { l.ctx.save(); l.ctx.setTransform(1, 0, 0, 1, 0, 0); l.ctx.clearRect(0, 0, l.cv.width, l.cv.height); l.ctx.restore(); l.actx.save(); l.actx.setTransform(1, 0, 0, 1, 0, 0); l.actx.clearRect(0, 0, l.av.width, l.av.height); l.actx.restore(); l.occ.fill(0); l.d = 1; } tips.length = beads.length = procs.length = 0; nodes.length = 0; E.fill(0); Q.fill(0); }
+function clearAll() { BAT.clear(); LG.reset(); for (const l of LAYERS) { l.ctx.save(); l.ctx.setTransform(1, 0, 0, 1, 0, 0); l.ctx.clearRect(0, 0, l.cv.width, l.cv.height); l.ctx.restore(); l.actx.save(); l.actx.setTransform(1, 0, 0, 1, 0, 0); l.actx.clearRect(0, 0, l.av.width, l.av.height); l.actx.restore(); l.occ.fill(0); l.d = 1; } tips.length = beads.length = procs.length = 0; nodes.length = 0; E.fill(0); Q.fill(0); }
 const styleBtns = [], colBtns = [];
 function mark() { styleBtns.forEach((b, i) => b.classList.toggle('active', i === sIdx)); colBtns.forEach((b, i) => b.classList.toggle('active', i < PALETTES.length ? (!drift && i === pIdx) : drift)); }
 function setPalette(i, keepDrift) { if (!keepDrift) { bgSlow = false; if (style === seasons) seasons.lockPal = true; } palVer++; rollAct(PALETTES[i], i === pIdx && !keepDrift ? null : PREF[i]); pIdx = i; if (!keepDrift) drift = false; mark(); }
-function setStyle(i) { seasons.lockPal = false; bgSlow = false; season.reset(); micro.reset(); blades.reset(); selfClick = R(10, 18); sIdx = i; style = STYLES[i]; clearAll(); if (!drift) pIdx = style.pal; palVer++; rollAct(curP(), PREF[pIdx]); style.init(); life.reset(); pCount = 0; decays.length = 0; for (const l of LAYERS) l.ag.fill(0); mark(); }
+function setStyle(i) { seasons.lockPal = false; bgSlow = false; season.reset(); micro.reset(); selfClick = R(10, 18); sIdx = i; style = STYLES[i]; clearAll(); if (!drift) pIdx = style.pal; palVer++; rollAct(curP(), PREF[pIdx]); style.init(); life.reset(); pCount = 0; decays.length = 0; for (const l of LAYERS) l.ag.fill(0); mark(); }
 STYLES.forEach((s, i) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = s.name; b.title = s.name + ' (' + (i + 1) + ')'; b.addEventListener('click', () => setStyle(i)); $('gStyle').appendChild(b); styleBtns.push(b); });
 PALETTES.forEach((p, i) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'sw'; b.style.background = p.sw; b.title = p.name; b.setAttribute('aria-label', p.name + ' colours'); b.addEventListener('click', () => setPalette(i)); $('gCol').appendChild(b); colBtns.push(b); });
 { const b = document.createElement('button'); b.type = 'button'; b.textContent = 'Drift'; b.title = 'Slowly cycle through all colours'; b.addEventListener('click', () => { drift = !drift; driftT = 0; mark(); }); $('gCol').appendChild(b); colBtns.push(b); }
@@ -2036,9 +2187,10 @@ $('bView').addEventListener('click', () => { if (cam.on) setOverlay(!video.class
 $('bFull').addEventListener('click', fullscreen);
 $('bClear').addEventListener('click', () => setStyle(sIdx));
 // growth speed: only the garden's clock changes; the view (camera drift, breathing, fog) always runs in real time
-const SPEEDS = [.5, 1, 2, 4, 8], spdBtns = []; let spd = 1;
-function setSpeed(v) { spd = v; spdBtns.forEach((b, i) => b.classList.toggle('active', SPEEDS[i] === v)); }
-SPEEDS.forEach(v => { const b = document.createElement('button'); b.type = 'button'; b.textContent = (v === .5 ? '0.5' : v) + '×'; b.title = 'Growth speed ' + b.textContent + ' ([ and ])'; b.addEventListener('click', () => { setSpeed(v); toast('Growth speed ' + b.textContent); }); $('gSpd').appendChild(b); spdBtns.push(b); });
+const SPEEDS = [.5, 1, 2, 4, 8, 16]; let spd = 1, spdAcc = 0;
+const spdTxt = v => (v < 1 ? v.toFixed(1) : v < 10 && Math.abs(v - Math.round(v)) > .05 ? v.toFixed(1) : Math.round(v)) + '×';
+function setSpeed(v) { spd = v; const r = $('spdR'); if (r) r.value = Math.log2(v / .5) * 200; const t = $('spdV'); if (t) t.textContent = spdTxt(v); }
+{ const r = $('spdR'); r.addEventListener('input', () => { let l = +r.value / 200; const n = Math.round(l); if (Math.abs(l - n) < .14) l = n; const v = .5 * 2 ** l; spd = v; $('spdV').textContent = spdTxt(v); }); r.addEventListener('change', () => setSpeed(spd)); setSpeed(1); }
 setSpeed(1);
 addEventListener('keydown', e => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -2048,10 +2200,9 @@ addEventListener('keydown', e => {
   else if (k === 'v') { if (cam.on) setOverlay(!video.classList.contains('on')); else toast('Turn the camera on first (C)'); }
   else if (k === 'n') { setPalette((pIdx + 1) % PALETTES.length); toast('Colour: ' + curP().name); }
   else if (k === 'x') setStyle(sIdx);
-  else if (k === 'g') { const seq = [null, 'grid', 'rows', 'line'], i = seq.indexOf(life.arr); life.setArr(seq[(i + 1) % seq.length]); toast('Garden: ' + (life.arr || 'wild')); }
-  else if (k === 'o' && life.arr) { life.order = (life.order + 1) % life.ORD.length; life.setArr(life.arr); toast('Order: ' + life.ORD[life.order]); }
+  else if (k === 'g') { const seq = [null, 'grid'], i = seq.indexOf(life.arr); life.setArr(seq[(i + 1) % seq.length]); toast('Garden: ' + (life.arr || 'wild')); }
   else if (k === 'l' && GLX) { setLook(LORD[(LORD.indexOf(look) + 1) % LORD.length]); toast('Look: ' + LOOKS[look]); }
-  else if (k === '[' || k === ']') { const i = clamp(SPEEDS.indexOf(spd) + (k === ']' ? 1 : -1), 0, SPEEDS.length - 1); setSpeed(SPEEDS[i]); toast('Growth speed ' + spdBtns[i].textContent); }
+  else if (k === '[' || k === ']') { const up = k === ']', c = up ? SPEEDS.find(v => v > spd + 1e-6) : [...SPEEDS].reverse().find(v => v < spd - 1e-6); if (c) setSpeed(c); toast('Growth speed ' + spdTxt(spd)); }
   else if (k === 's') savePng();
   else if (k >= '1' && k <= String(STYLES.length)) { setStyle(+k - 1); toast('Garden: ' + style.name); }
 });
@@ -2059,6 +2210,7 @@ addEventListener('keydown', e => {
 // the window changed size: what has grown stays where it is (anchored to the ground), and new growth fills the new space
 function onResized(dx, dy) {
   if (!style) return;
+  if (LG.on) LG.shift(dx, dy);
   for (const b of life.list) { b.x += dx; b.y += dy; } for (const p of life.petals) { p.x += dx; p.y += dy; p.floor += dy; }
   if (style === terrain) { setStyle(sIdx); return; }
   for (const t of tips) { t.x += dx; t.y += dy; if (t.gx !== undefined) { t.gx += dx; t.gy += dy; } if (t.hq) for (let i = 0; i < t.hq.length; i += 4) { t.hq[i] += dx; t.hq[i + 1] += dy; } if (t.path && !t.path.moved) { t.path.moved = 1; for (const p of t.path) { p[0] += dx; p[1] += dy; } } }
@@ -2099,7 +2251,7 @@ function step(dt, vdt = dt) {
   ptrStep(vdt); camStep(vdt);
 
   fx.globalCompositeOperation = 'destination-out'; fx.fillStyle = cam.on ? 'rgba(0,0,0,.12)' : 'rgba(0,0,0,.3)'; fx.fillRect(0, 0, W, H); fx.globalCompositeOperation = 'source-over';
-  runProcs(dt); runTips(dt); runBeads(dt); mist(dt); life.update(dt); blades.update(dt); if (!window.__noDraw) { fairy(dt); runMotes(dt); runDust(dt); if (GLX) runP(vdt); }
+  runProcs(dt); runTips(dt); runBeads(dt); mist(dt); life.update(dt); if (!window.__noDraw) { fairy(dt); runMotes(dt); runDust(dt); if (GLX) runP(vdt); }
 
   if (ptr.has && ptr.glow > 0.01) {
     ptr.glow *= Math.exp(-dt * 1.2);
@@ -2120,10 +2272,10 @@ function step(dt, vdt = dt) {
 let last = 0, slow = 16;
 function frame(now) {
   const raw = now - last; last = now;
-  if (raw < 200) { slow += (raw - slow) * .05; if (slow > 24) gov = Math.max(.3, gov * .985); else if (slow < 19) gov = Math.min(1, gov * 1.01); }
+  if (raw < 200) { slow += (raw - slow) * .05; if (LG.on) LG.MAXN = slow > 26 ? Math.max(50000, LG.MAXN * .998) : slow < 18 ? Math.min(LG.MAX0, LG.MAXN * 1.0005) : LG.MAXN; if (slow > 24) gov = Math.max(.3, gov * .985); else if (slow < 19) gov = Math.min(1, gov * 1.01); }
   const d = clamp(raw / 1000, .001, .05);
   if (spd < 1) step(d * spd, d);
-  else { window.__noDraw = true; if (spd >= 8) FF = 1; try { for (let i = 1; i < spd; i++) step(d, 0); } finally { if (FF) batAll(); FF = 0; window.__noDraw = false; } step(d); }      // 8x: the steps in between use the coarser fast-forward drawing      // faster: extra garden steps without drawing in between
+  else { spdAcc += spd; const n = Math.floor(spdAcc); spdAcc -= n; window.__noDraw = true; if (spd >= 8) FF = 1; try { for (let i = 1; i < n; i++) step(d, 0); } finally { if (FF) batAll(); FF = 0; window.__noDraw = false; } step(d); }      // 8x: the steps in between use the coarser fast-forward drawing      // faster: extra garden steps without drawing in between
   requestAnimationFrame(frame);
 }
 
@@ -2132,7 +2284,7 @@ resize();
 bgTop = curP().top.slice(); bgBot = curP().bot.slice(); drawBg(0);
 window.__garden = { season, windAt, windDbg: () => { let m = 0, sx = 0, sw = 0; for (let i = 0; i < WX.length; i++) { const l = Math.hypot(WX[i], WY[i]); if (l > m) m = l; sx += (i % GW) * l; sw += l; } return [+m.toFixed(3), sw ? +(sx / sw / GW).toFixed(3) : null, +sw.toFixed(2)]; }, dbg: () => JSON.stringify({ act: curP().act, name: curP().name, pIdx, s: [0,1,2,3,4,5].map(() => palette()[0][0] | 0) }), step, deposit, sprouts, setStyle, setPalette, startCam, state: () => ({ style: style.name, inner: style.cur ? style.cur.name + (style.prev ? ' < ' + style.prev.name : '') : null, pal: curP().name, tips: tips.length, beads: beads.length, procs: procs.length, gov, eg }) };
 requestAnimationFrame(t => { last = t; requestAnimationFrame(frame); });
-setTimeout(() => { if (!cam.on) toast('Move to make it grow, click to sprout. Move the mouse for controls'); }, 1500);
+setTimeout(() => { if (!cam.on) toast(stage.classList.contains('touch') ? 'Touch and drag to make it grow, tap to sprout. The round button opens the controls' : 'Move to make it grow, click to sprout. Move the mouse for controls'); }, 1500);
 })();
 </script>
 </body>

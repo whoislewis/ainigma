@@ -1,0 +1,2057 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Generative Garden</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#120e24;font-family:ui-sans-serif,system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif}
+  #stage{position:fixed;inset:0;overflow:hidden;cursor:none;touch-action:none;user-select:none;-webkit-user-select:none;background:#120e24}
+  #stage.ui{cursor:default}
+  #stage > canvas.l{position:absolute;left:0;top:0;width:100%;height:100%;display:block;will-change:transform}
+  #view{display:none}
+  #stage.gl > #view{display:block}
+  #stage.gl > #bg,#stage.gl > #far,#stage.gl > #mid,#stage.gl > #front,#stage.gl > #near,#stage.gl > #vig{display:none}
+  #vig{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 46%,rgba(0,0,0,0) 55%,rgba(12,4,30,.36) 100%)}
+  #bar{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);display:grid;grid-template-columns:auto 1fr;gap:10px 18px;align-items:center;max-width:96vw;
+       padding:14px 18px 14px 14px;border-radius:18px;background:rgba(14,10,28,.58);backdrop-filter:blur(18px) saturate(1.2);-webkit-backdrop-filter:blur(18px) saturate(1.2);
+       box-shadow:0 10px 40px rgba(0,0,0,.28),inset 0 0 0 1px rgba(255,255,255,.08);opacity:0;pointer-events:none;transition:opacity .5s;cursor:default;color:#fff;font-size:12.5px}
+  #bar.on{opacity:1;pointer-events:auto}
+  #logo{align-self:start;width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:#f2f2f2;color:#ff6446;overflow:hidden;transition:background .8s,color .8s}
+  #logo svg{width:28px;height:28px;display:block}
+  #bar .rows{display:flex;flex-direction:column;gap:7px}
+  #bar .row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 26px}
+  #bar .row.acts{gap:2px;border-top:1px solid rgba(255,255,255,.1);padding-top:8px;margin-top:2px}
+  #bar .grp{display:flex;align-items:center;gap:2px;flex-wrap:wrap}
+  #bar .lbl{display:inline-block;min-width:58px;opacity:.5;margin-right:4px;font:500 10px/1 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.12em;text-transform:uppercase}
+  #bar button{all:unset;cursor:pointer;padding:6px 11px;border-radius:999px;white-space:nowrap;letter-spacing:.01em;transition:background .2s,color .2s}
+  #bar button:hover{background:rgba(255,255,255,.14)}
+  #bar button:focus-visible{outline:2px solid #fff}
+  #bar button.active{background:rgba(255,255,255,.94);color:#1b1230}
+  #bar button.mini{padding:3px 7px;font:500 10px/1.2 ui-monospace,Menlo,monospace;letter-spacing:.06em;opacity:.7;border:1px solid rgba(255,255,255,.22);margin-left:3px}
+  #bar button.mini.active{opacity:1}
+  #bar button.sw{padding:0;width:20px;height:20px;margin:0 3px;border-radius:50%;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.35)}
+  #bar button.sw.active{box-shadow:0 0 0 2px rgba(18,12,34,.9),0 0 0 4px #fff}
+  #bar .sep{width:1px;height:18px;background:rgba(255,255,255,.16)}
+  #bar .acts button{opacity:.75;font-size:12px}
+  #bar #gSpd .lbl{min-width:0}
+  #bar #gLook,#bar #gStyle{flex-wrap:nowrap}
+  @media (max-width:720px){ #bar{grid-template-columns:1fr} #logo{display:none} }
+  #toast{position:absolute;left:50%;top:24px;transform:translateX(-50%);color:#fff;font-size:13px;padding:9px 16px;border-radius:999px;max-width:90vw;
+       background:rgba(18,12,34,.55);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);opacity:0;transition:opacity .6s;pointer-events:none;text-align:center}
+  #toast.on{opacity:1}
+  #camview{position:absolute;right:18px;top:18px;width:192px;height:108px;border-radius:10px;opacity:.85;display:none;box-shadow:0 4px 24px rgba(0,0,0,.4);image-rendering:pixelated}
+  #camview.on{display:block}
+  #video{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:fill;transform:scaleX(-1);opacity:.1;display:none;pointer-events:none;filter:blur(3px) saturate(.6)}
+  #video.on{display:block}
+  #meter{position:absolute;left:18px;top:18px;display:none;align-items:center;gap:8px;color:#fff;font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:7px 12px;border-radius:999px;background:rgba(18,12,34,.5);pointer-events:none}
+  #meter.on{display:flex;opacity:0;transition:opacity .5s}
+  #stage.ui #meter.on{opacity:.85}
+  #meter i{display:block;width:90px;height:5px;border-radius:3px;background:rgba(255,255,255,.22);overflow:hidden}
+  #meter b{display:block;height:100%;width:0;background:#fff;border-radius:3px}
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas class="l" id="bg"></canvas>
+  <canvas class="l" id="far"></canvas>
+  <canvas class="l" id="mid"></canvas>
+  <canvas class="l" id="front"></canvas>
+  <canvas class="l" id="near"></canvas>
+  <canvas class="l" id="view"></canvas>
+  <video id="video" playsinline muted></video>
+  <canvas class="l" id="fx"></canvas>
+  <div id="vig"></div>
+  <canvas id="camview" width="64" height="36"></canvas>
+  <div id="meter">Movement <i><b id="meterBar"></b></i></div>
+  <div id="toast" role="status"></div>
+  <div id="bar">
+    <div id="logo" title="Ainigma"><svg viewBox="0 0 1200 1200" aria-label="Ainigma" role="img"><path fill="currentColor" d="M842.18,520.17c-41.01,300.46-290.23,528.58-290.23,528.58v145.19h399.28v-673.77h-109.05Z"/><path fill="currentColor" d="M795.04,520.17c-6.14-59.64-29.01-107.92-69.66-137-117.24-83.78-337.59,23.64-492.23,239.98-154.71,216.33-184.99,459.62-67.76,543.4,92.39,65.99,248.73,13.27,386.57-117.87v-520.75c0-4.31,3.46-7.76,7.76-7.76h235.32Z"/><path fill="currentColor" d="M951.23,5c85.47,0,154.78,69.31,154.78,154.78s-69.31,154.78-154.78,154.78-154.78-69.31-154.78-154.78S865.76,5,951.23,5"/></svg></div>
+    <div class="rows">
+      <div class="row"><div class="grp" id="gStyle"><span class="lbl">Scene</span></div></div>
+      <div class="row"><div class="grp" id="gArr"><span class="lbl">Garden</span></div><div class="grp" id="gSpd"><span class="lbl">Speed</span></div></div>
+      <div class="row"><div class="grp" id="gCol"><span class="lbl">Colour</span></div></div>
+      <div class="row"><div class="grp" id="gLook"><span class="lbl">Look</span></div></div>
+      <div class="row acts"><span class="lbl"></span>
+        <button id="bCam" type="button" title="Webcam input (C)">Camera</button>
+        <button id="bView" type="button" title="Show or hide the camera image over the garden (V)">Camera image</button>
+        <button id="bFull" type="button" title="Fullscreen (F)">Fullscreen</button>
+        <button id="bClear" type="button" title="Start over (X)">Clear</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+/* ───────────── helpers ───────────── */
+const TAU = Math.PI * 2, PI = Math.PI;
+let _s = (Math.random() * 4294967296) >>> 0;
+try { const q = new URLSearchParams(location.search).get('seed'); if (q) _s = (+q) >>> 0; } catch (e) {}
+function rnd() { _s |= 0; _s = _s + 0x6D2B79F5 | 0; let t = Math.imul(_s ^ _s >>> 15, 1 | _s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }
+const R = (a = 1, b) => b === undefined ? rnd() * a : a + rnd() * (b - a);
+const RI = (a, b) => Math.floor(R(a, b + 1));
+const pick = a => a[Math.floor(rnd() * a.length)];
+const gauss = () => (rnd() + rnd() + rnd() - 1.5) / 1.5;
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, t) => a + (b - a) * t;
+const smooth = t => t * t * (3 - 2 * t);
+const angDiff = (a, b) => { let d = (a - b) % TAU; if (d > PI) d -= TAU; if (d < -PI) d += TAU; return d; };
+
+// value noise
+const NP = new Uint8Array(512), NG = new Float32Array(256);
+{ const p = [...Array(256).keys()]; for (let i = 255; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [p[i], p[j]] = [p[j], p[i]]; }
+  for (let i = 0; i < 512; i++) NP[i] = p[i & 255]; for (let i = 0; i < 256; i++) NG[i] = rnd() * 2 - 1; }
+function noise(x, y) {
+  const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+  const a = NG[NP[(xi & 255) + NP[yi & 255]]], b = NG[NP[((xi + 1) & 255) + NP[yi & 255]]];
+  const c = NG[NP[(xi & 255) + NP[(yi + 1) & 255]]], d = NG[NP[((xi + 1) & 255) + NP[(yi + 1) & 255]]];
+  return lerp(lerp(a, b, u), lerp(c, d, u), v);
+}
+
+/* ───────────── palettes ───────────── */
+const hex = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+const PALETTES = [
+  { name: 'Meadow', top: hex('#cdb1cb'), bot: hex('#84b4ad'), stem: [135, 42, 38], moss: [[152, 46, 62], [128, 46, 40]], sw: 'linear-gradient(135deg,#cdb1cb,#7fbf9f 55%,#f0907e)',
+    hues: [[8, 86, 70], [345, 82, 72], [272, 56, 68], [300, 48, 56], [38, 95, 62], [200, 55, 66]], pin: [[8, 90, 66], [38, 96, 60], [345, 86, 68]] },
+  { name: 'Mist', top: hex('#8b989f'), bot: hex('#ccd3d3'), stem: [250, 10, 42], moss: [[268, 42, 70], [18, 62, 72]], sw: 'linear-gradient(135deg,#aeb9bd,#b48fd6 55%,#f2a25c)',
+    hues: [[270, 50, 66], [290, 58, 38], [18, 68, 70], [222, 10, 58], [195, 78, 34], [330, 60, 62], [262, 44, 74]], pin: [[42, 96, 58], [330, 88, 62], [22, 95, 62]] },
+  { name: 'Lilac', top: hex('#9a82d4'), bot: hex('#baa6e2'), stem: [96, 56, 44], moss: [[92, 58, 48], [140, 46, 36]], sw: 'linear-gradient(135deg,#a48fdc,#8fc04a 55%,#f7b08e)',
+    hues: [[22, 92, 74], [350, 82, 72], [276, 60, 62], [256, 46, 70], [36, 82, 88], [310, 55, 70]], pin: [[22, 92, 70], [276, 62, 66], [50, 90, 70]] },
+  { name: 'Reef', top: hex('#1a1440'), bot: hex('#5c4aa6'), stem: [172, 42, 34], moss: [[170, 48, 38], [285, 42, 42]], sw: 'linear-gradient(135deg,#2a2060,#e0408f 55%,#4fc3e0)',
+    hues: [[322, 86, 52], [340, 92, 66], [8, 88, 62], [174, 66, 44], [196, 80, 64], [274, 64, 60], [350, 60, 84]], pin: [[196, 86, 70], [340, 92, 68], [174, 70, 60]] },
+  { name: 'Glass', top: hex('#e4541c'), bot: hex('#f6a552'), stem: [216, 82, 44], moss: [[214, 72, 46], [232, 62, 32]], sw: 'linear-gradient(135deg,#ee6a26,#f6a552 45%,#2a5fe0)',
+    hues: [[218, 90, 50], [202, 88, 62], [205, 70, 88], [250, 72, 62], [228, 84, 34], [190, 80, 70]], pin: [[205, 70, 92], [202, 90, 66], [250, 76, 70]] },
+  { name: 'Emerald', top: hex('#06211a'), bot: hex('#2a6b4c'), stem: [140, 62, 30], moss: [[128, 60, 32], [88, 66, 44]], sw: 'linear-gradient(135deg,#0b3326,#3f9a5c 55%,#e3e04a)',
+    hues: [[88, 72, 52], [152, 64, 36], [52, 96, 60], [70, 40, 92], [350, 82, 52], [165, 55, 55]], pin: [[52, 96, 62], [70, 40, 94], [350, 84, 60]] },
+  { name: 'Ink', top: hex('#07090f'), bot: hex('#1b2130'), stem: [38, 34, 74], moss: [[190, 34, 62], [38, 44, 72]], sw: 'linear-gradient(135deg,#0b0e17,#9fd6d0 55%,#f0c98a)',
+    hues: [[188, 48, 74], [38, 62, 80], [326, 52, 72], [158, 40, 64], [262, 40, 78], [26, 82, 66]], pin: [[42, 92, 72], [188, 72, 74], [330, 82, 72]] },
+  { name: 'Tide', top: hex('#0e3a48'), bot: hex('#84c1b7'), stem: [176, 34, 38], moss: [[172, 40, 50], [20, 58, 70]], sw: 'linear-gradient(135deg,#0e3a48,#84c1b7 50%,#f39a8a)',
+    hues: [[352, 72, 72], [26, 84, 72], [184, 56, 80], [44, 78, 82], [300, 40, 72], [170, 50, 42]], pin: [[44, 92, 76], [352, 82, 70], [184, 72, 82]] },
+];
+let pIdx = 0, drift = false, driftT = 0;
+let bgTop = PALETTES[0].top.slice(), bgBot = PALETTES[0].bot.slice(), hazeL = 60, SH = '12,6,30';
+let palVer = 0;
+const PREF = [[0, 2], [0, 2], [0, 2], [0, 3], [0, 1], [0, 2], [0, 1], [0, 1]];
+function rollAct(P, pref) { if (pref) { P.act = pref.slice(); return; } const h = P.hues.map((_, i) => i); P.act = []; for (let i = 0; i < 2; i++) P.act.push(h.splice(Math.floor(rnd() * h.length), 1)[0]); }
+PALETTES.forEach((P, i) => rollAct(P, PREF[i]));
+const curP = () => PALETTES[pIdx];
+const soft = c => [c[0], c[1] * .86, c[2]];
+// restrained: one main colour per organism, a lighter tint of it, and now and then the second colour
+function palette() {
+  const P = curP(), m = soft(P.hues[P.act[rnd() < .75 ? 0 : 1]]), o = soft(P.hues[P.act[1]]);
+  const p = [m, rnd() < .75 ? [m[0] + R(-10, 10), m[1], Math.min(92, m[2] + 12)] : o];
+  p.stem = P.stem; p.moss = P.moss; p.pin = P.pin; return p;
+}
+function mixc(a, b, t) { const dh = ((b[0] - a[0] + 540) % 360) - 180; return [(a[0] + dh * t + 360) % 360, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
+const jit = (c, dh = 10, dl = 6) => [(c[0] + R(-dh, dh) + 360) % 360, c[1], clamp(c[2] + R(-dl, dl), 4, 96)];
+
+/* ───────────── canvases ───────────── */
+const $ = id => document.getElementById(id);
+const stage = $('stage');
+let W = 1, H = 1, U = 1, DPR = 1, DIL = 20;
+const SPAN = 3200;
+const LAYERS = [
+  { name: 'far',   res: .6,  k: 1.05, hz: .75, blur: 2.8,   par: -3,  er: .5 },
+  { name: 'mid',   res: .8,  k: .9,   hz: .3,  blur: .5, par: -6,  er: .45 },
+  { name: 'front', res: 1,   k: 1.1,  hz: 0,   blur: 0,   par: -10, er: .4 },
+  { name: 'near',  res: .4,  k: 2.4,  hz: 0,   blur: 8,  par: -30, er: 1.1 },
+];
+for (const l of LAYERS) { l.cv = $(l.name); l.ctx = l.cv.getContext('2d'); l.av = document.createElement('canvas'); l.actx = l.av.getContext('2d'); l.acc = 0; l.occ = new Float32Array(48); l.ag = new Float32Array(48 * 27); l.pen = { ctx: l.ctx, k: l.k, hz: l.hz, u: 1, layer: l }; }
+const bgCv = $('bg'), bgCtx = bgCv.getContext('2d');
+const fxCv = $('fx'), fx = fxCv.getContext('2d');
+let fxK = 1;
+
+function sizeCanvas(cv, ctx, w, h, keep) {
+  if (cv.width === w && cv.height === h) return;
+  let tmp = null;
+  if (keep && cv.width > 1) { tmp = document.createElement('canvas'); tmp.width = cv.width; tmp.height = cv.height; tmp.getContext('2d').drawImage(cv, 0, 0); }
+  cv.width = w; cv.height = h;
+  if (tmp) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(tmp, Math.round((w - tmp.width) / 2), h - tmp.height); }
+}
+function resize() {
+  const oW = W, oH = H;
+  W = Math.max(1, stage.clientWidth || innerWidth); H = Math.max(1, stage.clientHeight || innerHeight);
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  const maxPx = 2560 * 1440; if (W * H * DPR * DPR > maxPx) DPR = Math.sqrt(maxPx / (W * H));
+  U = Math.sqrt(W * H) / 1150; DIL = 5 * U;
+  for (const l of LAYERS) {
+    const k = DPR * l.res;
+    sizeCanvas(l.cv, l.ctx, Math.round(W * k), Math.round(H * k), true);
+    l.ctx.setTransform(l.cv.width / W, 0, 0, l.cv.height / H, 0, 0);
+    l.ctx.lineCap = 'round'; l.ctx.lineJoin = 'round';
+    l.pen.u = U * l.k;
+    { const ak = Math.min(DPR, 1) * .5; sizeCanvas(l.av, l.actx, Math.round(W * ak), Math.round(H * ak), true); l.actx.setTransform(l.av.width / W, 0, 0, l.av.height / H, 0, 0); l.actx.lineCap = 'round'; l.actx.lineJoin = 'round'; }
+    l.cv.style.filter = l.blur ? `blur(${(l.blur * U).toFixed(1)}px)` : 'none'; l.d = 1;
+  }
+  sizeCanvas(bgCv, bgCtx, Math.max(2, Math.round(W / 4)), Math.max(2, Math.round(H / 4)), false);
+  if (oW > 1) try { drawBg(0); } catch (e) {}      // resizing clears the background canvas: paint it again at once, so no black frame shows
+  fxK = Math.min(DPR, 1.5);
+  sizeCanvas(fxCv, fx, Math.round(W * fxK), Math.round(H * fxK), false);
+  fx.setTransform(fxCv.width / W, 0, 0, fxCv.height / H, 0, 0);
+  if (oW > 1 && (oW !== W || oH !== H)) onResized((W - oW) / 2, H - oH);
+}
+addEventListener('resize', resize);
+document.addEventListener('fullscreenchange', resize);
+
+/* ───────────── colour + primitives ───────────── */
+const LA = -2.25;                    // light comes from upper left
+function col(pen, c, dl = 0, a = 1, ds = 0) {
+  let s = clamp(c[1] + ds, 0, 100), l = clamp(c[2] + dl, 4, 97);
+  if (pen.hz) { s *= 1 - pen.hz * .32; l += (hazeL - l) * pen.hz * .28; }
+  if (FF) return `hsla(${c[0] | 0},${s | 0}%,${Math.round(l / 2) * 2}%,${a})`;
+  return `hsla(${c[0] | 0},${s.toFixed(1)}%,${l.toFixed(1)}%,${a})`;
+}
+let GR = true;
+function ground(pen, x, y, r, c) {
+  if (!GR) return;
+  const k = pen.ctx; let g; if (FF) batFlush(k);
+  if (hazeL < 44) {
+    g = k.createRadialGradient(x, y, r * .2, x, y, r * 2);
+    g.addColorStop(0, `hsla(${c[0] | 0},85%,68%,.2)`); g.addColorStop(1, `hsla(${c[0] | 0},85%,68%,0)`);
+    k.fillStyle = g; k.beginPath(); k.arc(x, y, r * 2, 0, TAU); k.fill();
+  }
+  const sx = x + r * .16, sy = y + r * .24;
+  g = k.createRadialGradient(sx, sy, r * .3, sx, sy, r * 1.5);
+  g.addColorStop(0, `rgba(${SH},.34)`); g.addColorStop(1, `rgba(${SH},0)`);
+  k.fillStyle = g; k.beginPath(); k.arc(sx, sy, r * 1.5, 0, TAU); k.fill();
+}
+// every plant is one organism with a root. Each stroke also writes, into a hidden map, which organism it belongs to,
+// so the compositor can bend a whole plant from its own root when the wind passes.
+function mkOrg(x, y, st, ph) { const r = clamp(Math.round(((x - W / 2) / SPAN + .5) * 255), 0, 255), g = clamp(Math.round((H - y) / SPAN * 255 + 25), 0, 255), b = (st | 0) * 64 + (ph === undefined ? Math.floor(rnd() * 64) : ph & 63); return { x, y, col: `rgb(${r},${g},${b})` }; }
+// the per-plant map is switched off: the painted picture is never bent or warped
+function orgPen(pen) { return pen; }
+function orgLike(base, pen) { if (!pen.org) return base; const q = Object.create(base); q.org = pen.org; return q; }
+// fast-forward (the jump): bigger time steps, coarser segments, and consecutive strokes of the same colour and width
+// are gathered into one path, so minutes of growth can be painted in a second or two. Order of painting is kept.
+let FF = 0;
+const BAT = new Map();
+function batFlush(k) { const b = BAT.get(k); if (!b) return; BAT.delete(k); const c = k.lineCap; k.strokeStyle = b.s; k.lineWidth = b.w; k.lineCap = b.cap; k.stroke(b.p); k.lineCap = c; }
+function batAll() { for (const k of [...BAT.keys()]) batFlush(k); }
+function batSeg(k, x1, y1, x2, y2, w, s) {
+  let b = BAT.get(k); const cap = k.lineCap;
+  if (b && (b.s !== s || b.w !== w || b.cap !== cap)) { batFlush(k); b = null; }
+  if (!b) { b = { s, w, cap, p: new Path2D(), x: NaN, y: NaN }; BAT.set(k, b); }
+  if (b.x !== x1 || b.y !== y1) b.p.moveTo(x1, y1); b.p.lineTo(x2, y2); b.x = x2; b.y = y2;
+}
+function dot(pen, x, y, r, c, dl = 0, a = 1) { const k = pen.ctx; if (FF) { batFlush(k); batFlush(pen.layer.actx); } pen.layer.d = 1; k.fillStyle = col(pen, c, dl, a); k.beginPath(); k.arc(x, y, r, 0, TAU); k.fill(); if (pen.org) { const q = pen.layer.actx; q.fillStyle = pen.org.col; q.beginPath(); q.arc(x, y, r + DIL, 0, TAU); q.fill(); } }
+function seg(pen, x1, y1, x2, y2, w, style) { const k = pen.ctx; pen.layer.d = 1; if (FF) { const wq = Math.round(w * 2) / 2 || .5; batSeg(k, x1, y1, x2, y2, wq, style); if (pen.org) batSeg(pen.layer.actx, x1, y1, x2, y2, wq + DIL * 2, pen.org.col); return; } k.strokeStyle = style; k.lineWidth = w; k.beginPath(); k.moveTo(x1, y1); k.lineTo(x2, y2); k.stroke(); if (pen.org) { const q = pen.layer.actx; q.strokeStyle = pen.org.col; q.lineWidth = w + DIL * 2; q.beginPath(); q.moveTo(x1, y1); q.lineTo(x2, y2); q.stroke(); } }
+function petalPath(k, x, y, a, len, w) {
+  const ca = Math.cos(a), sa = Math.sin(a), tx = x + ca * len, ty = y + sa * len, nx = -sa * w, ny = ca * w, mx = x + ca * len * .5, my = y + sa * len * .5;
+  k.beginPath(); k.moveTo(x, y); k.quadraticCurveTo(mx + nx, my + ny, tx, ty); k.quadraticCurveTo(mx - nx, my - ny, x, y);
+}
+function glints(pen, x, y, r, n) {
+  for (let i = 0; i < n; i++) { const a = LA + R(-.7, .7), d = r * R(.25, .8); dot(pen, x + Math.cos(a) * d, y + Math.sin(a) * d, R(.5, 1.3) * pen.u, [50, 30, 98], 0, R(.5, .9)); }
+}
+function tiny(pen, x, y, r, c, cc) {
+  const k = pen.ctx, rot = R(TAU), n = rnd() < .8 ? 5 : 6; if (FF) batFlush(k);
+  for (let i = 0; i < n; i++) {
+    const a = rot + i / n * TAU;
+    k.fillStyle = col(pen, c, Math.cos(a - LA) * 11 + R(-4, 4), .94);
+    k.beginPath(); k.ellipse(x + Math.cos(a) * r * .56, y + Math.sin(a) * r * .56, r * .52, r * .36, a, 0, TAU); k.fill();
+  }
+  dot(pen, x, y, r * .26, cc, -4); dot(pen, x - r * .07, y - r * .08, r * .1, cc, 28, .8);
+}
+
+/* ───────────── growth engine: everything is drawn by tips that extend, taper and branch ───────────── */
+let time = 0, vtime = 0;      // time: the garden's own clock (runs slower or faster with the speed buttons). vtime: the view's clock, always real time, for camera drift, breathing and fog
+const GW = 48, GH = 27, E = new Float32Array(GW * GH), Q = new Float32Array(GW * GH), ecol = new Float32Array(GW);
+let eg = 0, atCool = 0, gov = 1;
+const colOf = x => clamp((x / W * GW) | 0, 0, GW - 1);
+const eX = x => ecol[colOf(x)];
+const eAt = (x, y) => E[clamp((y / H * GH) | 0, 0, GH - 1) * GW + colOf(x)];
+// movement leaves energy: growth nearby speeds up for a while. Only a click (plant = true) can also make something new take root
+function deposit(x, y, amt, plant = true) {
+  const ci = x / W * GW, cj = y / H * GH, i0 = Math.floor(ci), j0 = Math.floor(cj);
+  for (let j = j0 - 2; j <= j0 + 2; j++) for (let i = i0 - 2; i <= i0 + 2; i++) {
+    if (i < 0 || j < 0 || i >= GW || j >= GH) continue;
+    const w = Math.exp(-((i + .5 - ci) ** 2 + (j + .5 - cj) ** 2) / 2.2), id = j * GW + i;
+    E[id] = Math.min(1.4, E[id] + amt * w); if (plant) Q[id] += amt * w * .5;
+  }
+}
+
+const tips = [], beads = [], procs = [], perches = [], MAXT = 3200;
+function tip(o) {
+  if (tips.length >= MAXT) return null;
+  if (o.shade && !o.prof) { const cap = 4.2 * o.pen.u; if (o.w > cap) o.w = cap; if (o.wf) { const f0 = o.wf; o.wf = f => Math.min(cap, f0(f)); } }      // no fat tubes: thin stems and branches only
+  o.d = 0; o.n = 0; o.acc = 0; o.ph = R(TAU); o.delay = o.delay || 0; o.cw = o.w; o.pi = 0;
+  if (o.every) o.bacc = o.every * R(.4, 1);
+  tips.push(o); return o;
+}
+function later(sec, fn) { let t = sec; procs.push(dt => { t -= dt * (1 + eg); if (t <= 0) { fn(); return false; } }); }
+// a bead swells at the end of a tip
+function bead(pen, x, y, r, c, dl = 0) {
+  if (beads.length >= 900) return;
+  const lob = [[0, 0, 1]], n = r > 1.6 * pen.u ? RI(1, 3) : 0, a0 = R(TAU);
+  for (let i = 0; i < n; i++) { const a = a0 + i * 2.2 + R(-.4, .4), d = R(.35, .6); lob.push([Math.cos(a) * d, Math.sin(a) * d, R(.55, .8)]); }
+  beads.push({ pen, x, y, r: r * (n ? .82 : 1), c, dl, t: 0, last: 0, lob });
+}
+function runBeads(dt) {
+  for (let i = beads.length - 1; i >= 0; i--) {
+    const b = beads[i]; b.t += dt * 1.1 * (1 + eg); const t = Math.min(1, b.t), rr = b.r * (1 - (1 - t) * (1 - t)), u = b.pen.u;
+    if (rr - b.last > .35 || t >= 1) { b.last = rr;
+      for (const q of b.lob) { const px = b.x + q[0] * rr, py = b.y + q[1] * rr, lr = rr * q[2];
+        dot(b.pen, px, py, lr, b.c, b.dl - 9); dot(b.pen, px - lr * .14, py - lr * .16, lr * .74, b.c, b.dl - 1); if (t >= 1 && lr > 1.5 * u) dot(b.pen, px - lr * .28, py - lr * .3, lr * .4, b.c, b.dl + 8, .7); } }
+    if (t >= 1) {
+      beads[i] = beads[beads.length - 1]; beads.pop();
+      // a seed head: fine hairs grow out of the bud
+      if (false) {
+        const n = clamp(Math.round(b.r / u * 1.5), 4, 11), hc = lite(b.c, 8), pen = b.pen;
+        for (let k = 0; k < n; k++) tip({ pen, x: b.x, y: b.y, a: R(TAU), len: b.r * R(1.25, 2.3) + 2 * u, w: .75 * u, tp: .4, c: [b.c[0], b.c[1], b.c[2] - 6], c2: hc, sp: R(9, 16), wander: .12, al: .85, delay: R(0, 1.2), end: rnd() < .5 ? e => dot(pen, e.x, e.y, R(.6, 1.1) * u, hc, 10) : null });
+      }
+    }
+  }
+}
+// shading is laid along the tube as one continuous ribbon, so no joints or rings show
+function gloss(pen, px, py, ax, ay, bx, by, ww, c, hard, cap) {
+  const k = pen.ctx, sl = Math.hypot(bx - ax, by - ay) || 1, nx = -(by - ay) / sl, ny = (bx - ax) / sl, sd = (Math.cos(LA) * nx + Math.sin(LA) * ny) * ww, ox = nx * sd, oy = ny * sd, L = hard ? [[.15, .7, -2], [.26, .34, 11], [.33, .1, 26]] : [[.05, .9, -4.5], [.11, .74, -1], [.17, .56, 2.5], [.22, .38, 6], [.26, .2, 9.5]];
+  pen.layer.d = 1; if (FF) batFlush(k); k.lineCap = cap ? 'round' : 'butt';
+  for (const q of L) { const dx = ox * q[0], dy = oy * q[0]; k.strokeStyle = col(pen, c, q[2]); k.lineWidth = ww * q[1]; k.beginPath(); k.moveTo(px + dx, py + dy); k.lineTo(ax + dx, ay + dy); k.lineTo(bx + dx, by + dy); k.stroke(); }
+  k.lineCap = 'round';
+}
+function widthOf(t, f) {
+  if (t.wf) return t.wf(f);
+  if (t.prof === 1) return t.w * Math.max(.1, Math.pow(Math.sin(PI * Math.min(1, f * 1.02 + .02)), .75));
+  return t.w * (1 - (t.tp === undefined ? .8 : t.tp) * f);
+}
+function advance(t, step) {
+  const pen = t.pen, u = pen.u, f = Math.min(1, t.d / t.len); let nx, ny;
+  if (t.path) {
+    const p = t.path[t.pi + 1], dx = p[0] - t.x, dy = p[1] - t.y, dd = Math.hypot(dx, dy);
+    if (dd <= step || (FF && !t.shade && !t.every)) { nx = p[0]; ny = p[1]; t.pi++; step = dd; if (t.pi >= t.path.length - 1) t.d = t.len; } else { nx = t.x + dx / dd * step; ny = t.y + dy / dd * step; }
+    if (dd > .001) t.a = Math.atan2(dy, dx);
+  } else {
+    const k = step / u, a0 = t.a;
+    t.a += Math.sin(t.ph += .11 * k) * (t.wander === undefined ? .03 : t.wander) * k * .4 + (t.turn || 0) * k + (t.droop ? t.droop * f * k : 0);
+    if (t.trop) t.a += angDiff(t.tropA, t.a) * t.trop * k;
+    if (t.steer) t.steer(t, k);
+    { const lim = step / (Math.max(t.cw || t.w, 1.5 * u) * 1.8 + 6 * u), da = angDiff(t.a, a0); if (Math.abs(da) > lim) t.a = a0 + Math.sign(da) * lim; }      // a tube never turns tighter than its own width allows: always a flowing bend, never a corner
+    nx = t.x + Math.cos(t.a) * step; ny = t.y + Math.sin(t.a) * step;
+  }
+  const ww0 = Math.max(.5 * u, widthOf(t, f)), ww = t.shade && !t.prof && ww0 > 2.4 * u ? ww0 * (1 + .07 * noise(t.d / (110 * u) + t.ph * 7, 3.3 + t.ph)) : ww0; let c = t.c2 ? mixc(t.c, t.c2, Math.pow(f, t.cp || 1.2)) : t.c;
+  if (t.shade) {
+    if (t.jn && t.n === 0) { pen.ctx.lineCap = 'butt'; seg(pen, t.x, t.y, nx, ny, ww, col(pen, c, -8 + (t.dl || 0))); pen.ctx.lineCap = 'round'; }   // a branch grows out of its parent without a collar
+    else seg(pen, t.x, t.y, nx, ny, ww, col(pen, c, (t.gl ? -18 : -8) + (t.dl || 0)));
+    if (false) {            // flocked edge: short hairs break the clean silhouette
+      const sa = Math.sin(t.a), ca = Math.cos(t.a);
+      for (const s of [1, -1]) { if (rnd() < .35) continue; const ex = nx - sa * s * ww * .45, ey = ny + ca * s * ww * .45, ha = t.a + s * R(.7, 1.5), hl = Math.min(8 * u, ww * R(.18, .46) + R(.8, 2.4) * u);
+        seg(pen, ex, ey, ex + Math.cos(ha) * hl, ey + Math.sin(ha) * hl, .7 * u, col(pen, c, (-sa * s * Math.cos(LA) + ca * s * Math.sin(LA)) * 8 + 2, .6)); }
+    }
+    const hq = t.hq || (t.hq = []); hq.push(t.x, t.y, ww, c);
+    while (hq.length >= 8 && Math.hypot(hq[4] - nx, hq[5] - ny) >= Math.max(hq[6], ww) * .3 + 1.2 * u) { const first = t.gx === undefined; gloss(pen, first ? hq[0] : t.gx, first ? hq[1] : t.gy, hq[0], hq[1], hq[4], hq[5], hq[6], hq[7], t.gl, first); t.gx = hq[0]; t.gy = hq[1]; hq.splice(0, 4); }
+  }
+  else seg(pen, t.x, t.y, nx, ny, ww, col(pen, c, t.dl || 0, t.al || 1));
+  t.qx = t.x; t.qy = t.y; t.pc = c; t.cw = ww0; t.x = nx; t.y = ny; t.d += step; t.n++;
+  { const ag = pen.layer.ag, ci = (nx / W * GW) | 0, cj = (ny / H * GH) | 0; if (ci >= 0 && cj >= 0 && ci < GW && cj < GH && !ag[cj * GW + ci]) ag[cj * GW + ci] = time + .001; }
+  if (t.every) { t.bacc -= step; if (t.bacc <= 0) { t.bacc = t.every * R(.7, 1.3); t.branch(t, f); } }
+}
+function runTips(dt) {
+  const fk = FF ? Math.max(1, dt * 60) : 1; let budget = 3400 * gov * fk;
+  for (let i = tips.length - 1; i >= 0; i--) {
+    const t = tips[i];
+    if (t.delay > 0) { t.delay -= dt * (1 + eg); continue; }
+    const u = t.pen.u, f = Math.min(1, t.d / t.len);
+    t.acc += t.sp * u * dt * (1 + 3.2 * Math.min(1, eAt(t.x, t.y)) + eg) * (.3 + .7 * Math.sqrt(1 - f));
+    const sl = clamp(t.cw * .45 + u * .8, 1.2 * u, 3.2 * u) * (FF ? 2.5 : 1);
+    let n = Math.min(10 * fk, (t.acc / sl) | 0);
+    while (n-- > 0 && t.d < t.len) { advance(t, sl); t.acc -= sl; budget--; }
+    if (!FF && t.d < t.len && t.acc > .3 * u) { advance(t, t.acc); t.acc = 0; budget--; }      // the rest of this frame's growth too, so a tip moves on every frame instead of in jumps
+    if (t.d >= t.len) {
+      if (t.shade && t.hq) { const hq = t.hq; hq.push(t.x, t.y, t.cw, t.pc); while (hq.length >= 8) { const first = t.gx === undefined; gloss(t.pen, first ? hq[0] : t.gx, first ? hq[1] : t.gy, hq[0], hq[1], hq[4], hq[5], hq[6], hq[7], t.gl, first || hq.length < 12); t.gx = hq[0]; t.gy = hq[1]; hq.splice(0, 4); } }
+      tips[i] = tips[tips.length - 1]; tips.pop();
+      if (t.shade && t.cw > 1.4 * u && !t.prof) { perches.push([t.x, t.y, t.pen]); if (perches.length > 600) perches.splice(0, 100); }      // a place where micro life can take root later
+      if (t.end) { t.end(t); if ((t.shade || t.every) && rnd() < .3) { const tx = t.x, ty = t.y, c = t.pc || t.c, ly = t.pen.layer; later(R(3, 15), () => { emit.push([tx, ty, c, ly]); if (emit.length > 160) emit.shift(); }); } }
+    }
+    if (budget < 0) break;
+  }
+  if (budget < 0 && tips.length > 1) tips.unshift(tips.pop());
+}
+function runProcs(dt) { for (let i = procs.length - 1; i >= 0; i--) if (procs[i](dt) === false) { procs[i] = procs[procs.length - 1]; procs.pop(); } }
+
+/* ───────────── organisms, all made of growing tips ───────────── */
+const two = pal => pal[1] || pal[0];
+const lite = (c, d = 16) => [c[0], c[1], Math.min(93, c[2] + d)];
+
+// branching coral: stag (default), fine fan, or fat knobbly soft coral
+function coral(pen, x, y, h, c1, c2, o = {}) {
+  const fat = o.fat, fan = o.fan; pen = orgPen(pen, x, y, fat ? 3 : fan ? 1 : 2);
+  const u = pen.u, sc = clamp(h / (150 * u), .5, 2.8), up = o.down ? PI / 2 : -PI / 2;
+  // every coral gets a character of its own: how wide it forks, how long it reaches, how often it branches, how much it wanders
+  const V = fat ? pick([{ s: [.4, .95], il: 1, br: .9, wn: .04 }, { s: [.2, .5], il: 1.45, br: .6, wn: .07 }, { s: [.7, 1.2], il: .75, br: .95, wn: .03 }])
+    : fan ? pick([{ s: [.3, .75], il: .7, br: .86, wn: .06 }, { s: [.15, .4], il: 1, br: .9, wn: .09 }, { s: [.5, 1], il: .55, br: .92, wn: .04 }])
+    : pick([{ s: [.3, .75], il: 1, br: .86, wn: .04 }, { s: [.12, .35], il: 1.6, br: .5, wn: .1 }, { s: [.6, 1.15], il: .7, br: .95, wn: .03 }, { s: [.25, .6], il: 1.2, br: .75, wn: .13 }]);
+  // ... its own way of ending, and its own run of colour from base to tips
+  const tipK = o.epi ? 'bud' : pick(fat ? ['bud', 'bud', 'tuft', 'point'] : ['bud', 'bud', 'tuft', 'star', 'point']), cq = rnd(); let ca = c1, cb = c2;
+  if (cq < .3) { const P = curP(); cb = lite(soft(P.hues[P.act[1]]), 6); }
+  else if (cq < .55) { ca = [c1[0], Math.min(100, c1[1] + 8), Math.max(14, c1[2] - 16)]; cb = lite(c1, 20); }
+  else if (cq < .7) { ca = lite(c1, 12); cb = [c1[0], Math.min(100, c1[1] + 6), Math.max(18, c1[2] - 10)]; }
+  const w0 = Math.min(4 * u, (fat ? R(20, 32) * u * clamp(h / (220 * u), .55, 1.5) : (fan ? 3.4 : 8.5) * u * sc) * R(.8, 1.2)), wmin = fat ? w0 * .3 : fan ? .8 * u : 1.7 * u, cnt = { n: 0, max: Math.round((fat ? 44 : fan ? 130 : 56) * (V.br < .7 ? .6 : 1)) }, sp = fat ? R(11, 16) : fan ? R(20, 28) : R(15, 22);
+  const cAt = f => mixc(ca, cb, Math.pow(clamp(f, 0, 1), 1.4));
+  const finish = t => {
+    const w2 = t.cw;
+    if (tipK === 'tuft') { const n = RI(5, 8); for (let i = 0; i < n; i++) tip({ pen, x: t.x, y: t.y, a: t.a + R(-1, 1), len: Math.max(8 * u, w2 * R(2.2, 4.5)), w: Math.max(.8 * u, w2 * .2), tp: .6, c: cb, c2: lite(cb, 14), sp: 14, wander: .1, delay: R(0, .8) }); }
+    else if (tipK === 'star') petals(pen, t.x, t.y, clamp(w2 * 1.5, 5 * u, 13 * u), cb, lite(cb, 16), RI(5, 8), { w: .28 });
+    else if (tipK === 'point') tip({ pen, x: t.x, y: t.y, a: t.a, len: Math.max(10 * u, w2 * 3), w: w2, tp: .93, c: cAt(1), shade: 1, jn: 1, sp, wander: V.wn });
+    else bead(pen, t.x, t.y, w2 * (fat ? .5 : .66), mixc(ca, cb, .7), 2);
+    if (o.epi && rnd() < o.epi.p) o.epi.fn(t);
+  };
+  const node = (x, y, a, w, delay, jn) => {
+    cnt.n++; const f0 = clamp(1 - (w - wmin) / (w0 - wmin + .001), 0, 1), il = h * (fat ? R(.13, .22) : R(.09, .2)) * (fan ? .7 : 1) * V.il * (.55 + .45 * w / w0);
+    tip({ pen, x, y, a, len: il, w, tp: .14, c: cAt(f0), c2: cAt(f0 + .18), shade: 1, jn, sp, wander: V.wn, trop: fat ? .004 : .008, tropA: up, delay,
+      end(t) {
+        const w2 = t.cw; if (w2 * .8 < wmin || cnt.n >= cnt.max || t.y < .04 * H || t.y > 1.04 * H || t.x < -.06 * W || t.x > 1.06 * W) { finish(t); return; }
+        const s = R(V.s[0], V.s[1]) * (fat ? 1.15 : 1), side = rnd() < .5 ? 1 : -1;
+        node(t.x, t.y, t.a + side * s, w2 * R(.8, .92), 0, 1); if (rnd() < V.br) node(t.x, t.y, t.a - side * s * R(.4, .9), w2 * R(.7, .86), R(0, .6), 1);
+      } });
+  };
+  node(x, y, o.a0 !== undefined ? o.a0 : up + R(-.2, .2), w0, 0); if (!fan && o.a0 === undefined && rnd() < .5) node(x + R(-6, 6) * u, y, up + R(-.6, .6) * (fat ? 1.4 : 1), w0 * .8, R(.5, 2));
+}
+
+// a soft cushion: hundreds of fine filaments radiating from one base, like an anemone or a moss dome
+function cushion(pen, x, y, r, c1, c2) {
+  pen = orgPen(pen, x, y, 0); const u = pen.u, n = clamp(Math.round(r / u * 2.4), 70, 380), flat = R(.7, 1), lean = R(-.25, .25);
+  for (let i = 0; i < n; i++) {
+    const g = clamp(gauss() * 1.15, -1.5, 1.5), a = -PI / 2 + g + lean, ln = r * R(.55, 1) * (.55 + .45 * Math.cos(g * .9)) * (Math.abs(g) > 1 ? flat : 1), c = jit(c1, 7, 5);
+    tip({ pen, x: x + gauss() * r * .16, y: y + R(-2, 4) * u, a, len: ln, w: R(1.3, 2.8) * u, tp: .75, c: [c[0], c[1], c[2] - 16], c2: mixc(c, c2, .35 + .4 * rnd()), cp: .9, dl: Math.cos(a - LA) * 9, sp: R(14, 26), wander: .09, turn: g * .0025, delay: Math.abs(g) * R(.6, 2.2) + R(0, 1.2),
+      end: rnd() < .14 ? t => bead(pen, t.x, t.y, R(1, 1.9) * u, c2, 14) : null });
+  }
+}
+
+// a shrub of fine branching twigs with beaded tips
+function bush(pen, x, y, r, c1, c2) {
+  pen = orgPen(pen, x, y, 1); const u = pen.u, n = RI(12, 24);
+  const twig = (x, y, a, len, w, gen, delay) => tip({ pen, x, y, a, len, w, tp: .35, c: c1, c2: mixc(c1, c2, .3 + gen * .25), shade: w > 2.4 * u ? 1 : 0, dl: Math.cos(a - LA) * 8, sp: R(18, 30), wander: .08, trop: .004, tropA: -PI / 2, delay,
+    end(t) { if (gen >= 3 || t.cw < .9 * u) { bead(pen, t.x, t.y, R(1.1, 2.3) * u, c2, 12); return; } const k = RI(2, 3); for (let j = 0; j < k; j++) twig(t.x, t.y, t.a + (j - (k - 1) / 2) * R(.5, .9) + R(-.15, .15), len * R(.55, .8), t.cw * .8, gen + 1, R(0, .5)); } });
+  for (let i = 0; i < n; i++) { const g = gauss() * .95; twig(x + gauss() * r * .14, y, -PI / 2 + g, r * R(.3, .5), R(1.8, 3.6) * u * clamp(r / (90 * u), .7, 1.8), 0, Math.abs(g) * 1.5 + R(0, 2)); }
+}
+
+function grass(pen, x, y, h, pal) {
+  pen = orgPen(pen, x, y, 0); const u = pen.u, n = RI(14, 34), st = pal.stem;
+  for (let i = 0; i < n; i++) {
+    const lean = gauss() * .8, c = [st[0] + R(-16, 20), st[1], st[2] + R(-8, 4)];
+    tip({ pen, x: x + gauss() * h * .1, y: y + R(0, 3) * u, a: -PI / 2 + lean * .3, len: h * R(.4, 1), w: R(1, 2.4) * u, tp: .75, c, c2: lite(c, 24), droop: lean * .012, sp: R(34, 60), wander: .03, delay: R(0, 2.5),
+      end: rnd() < .22 ? t => bead(pen, t.x, t.y, R(1.2, 2.2) * u, pick(pal), 8) : null });
+  }
+}
+
+/* flowers: petals are tips with a lens-shaped width, so a flower opens by its petals extending */
+function petals(pen, x, y, r, c1, c2, n, o = {}) {
+  const u = pen.u, a0 = o.a0 === undefined ? R(TAU) : o.a0, spread = o.spread || TAU, sp = Math.max(9, r / u * (o.fast ? 1.6 : .42));
+  for (let i = 0; i < n; i++) {
+    const a = spread === TAU ? a0 + i / n * TAU + R(-.08, .08) : a0 + (i / (n - 1) - .5) * spread + R(-.1, .1), c = jit(c1, 5, 4);
+    tip({ pen, x: x + Math.cos(a) * r * .06, y: y + Math.sin(a) * r * .06, a, len: r * R(.88, 1.08) * (o.len || 1), w: r * (o.w || .2), prof: 1, c: [c[0], c[1], c[2] - 6], c2, cp: 1.5, shade: 1, dl: Math.cos(a - LA) * 5, sp, wander: .02, turn: (o.curl || 0) * (spread === TAU ? R(-1, 1) : (i / (n - 1) - .5) * 2) / (r / u), delay: (o.delay || 0) + R(0, .5) });
+  }
+}
+function flower(pen, x, y, r, pal, ang, kind, fast) {
+  pen = orgPen(pen, x, y, 1); const u = pen.u, c1 = pal[0], c2 = lite(two(pal), 12), gold = [42, 96, 58], q = kind === undefined ? rnd() : kind;
+  if (q < .26) {            // daisy
+    petals(pen, x, y, r, c1, c2, RI(11, 16), { w: .17, fast }); petals(pen, x, y, r, lite(c1, 6), c2, RI(8, 11), { w: .15, len: .62, delay: fast ? .3 : 1.6, fast });
+    later(fast ? .5 : 2.4, () => { bead(pen, x, y, r * .17, gold, 0); });
+  } else if (q < .46) {     // lily
+    const a = ang === undefined ? -PI / 2 : ang; petals(pen, x, y, r * 1.15, c1, c2, RI(5, 6), { a0: a, spread: R(2, 2.9), w: .3, curl: .5, fast });
+    for (let i = 0; i < 4; i++) tip({ pen, x, y, a: a + R(-.5, .5), len: r * R(.5, .75), w: .9 * u, tp: .3, c: c2, sp: 16, delay: fast ? .6 : 2.5, end: t => bead(pen, t.x, t.y, 1.5 * u, gold, 4) });
+  } else if (q < .66) {     // allium: a sphere of filaments
+    const n = clamp(Math.round(r / u * 3), 40, 200);
+    for (let i = 0; i < n; i++) { const a = R(TAU), c = jit(c1, 8, 6); tip({ pen, x, y, a, len: r * R(.75, 1.05), w: R(1, 1.9) * u, tp: .6, c: [c[0], c[1], c[2] - 12], c2, dl: Math.cos(a - LA) * 10, sp: Math.max(9, r / u * (fast ? 1.4 : .4)), wander: .05, delay: R(0, fast ? .4 : 1.8), end: rnd() < .45 ? t => bead(pen, t.x, t.y, R(1, 1.8) * u, c2, 10) : null }); }
+  } else if (q < .82) {     // dahlia: three rings
+    petals(pen, x, y, r, c1, c2, RI(13, 18), { w: .16, fast }); petals(pen, x, y, r, lite(c1, 5), c2, RI(10, 14), { w: .15, len: .72, delay: fast ? .25 : 1.4, fast }); petals(pen, x, y, r, lite(c1, 10), c2, RI(7, 10), { w: .14, len: .45, delay: fast ? .5 : 2.8, fast });
+  } else if (q < .92) {     // plume: a rachis that throws beaded barbs as it climbs
+    const a = ang === undefined ? -PI / 2 : ang, L = r * 4;
+    tip({ pen, x, y, a, len: L, w: 2 * u, tp: .7, c: pal.stem, c2: c1, sp: fast ? 60 : 22, wander: .03, turn: R(-.004, .004), every: 5 * u,
+      branch(t, f) { const bl = L * .2 * Math.pow(Math.sin(PI * Math.min(1, f + .08)), .6) * (1 - f * .4), c = mixc(c1, two(pal), f); for (const s of [1, -1]) tip({ pen, x: t.x, y: t.y, a: t.a + s * R(.7, 1.15), len: bl, w: 1.1 * u, tp: .4, c: [c[0], c[1], c[2] - 8], c2: lite(c, 14), sp: 20, end: e => bead(pen, e.x, e.y, R(1, 1.9) * u, lite(c, 8), 6) }); } });
+  } else {                  // umbel: rays that each end in a small filament head
+    const a = ang === undefined ? -PI / 2 : ang, k = RI(5, 9);
+    for (let i = 0; i < k; i++) tip({ pen, x, y, a: a + (i / (k - 1) - .5) * R(1.5, 2.1), len: r * R(.75, 1.1), w: 1.2 * u, tp: .4, c: pal.stem, sp: fast ? 60 : 20, delay: R(0, .6), end: t => flower(pen, t.x, t.y, r * .26, pal, undefined, .5, fast) });
+  }
+}
+
+// a swaying path from a root to a target
+function mkPath(pen, x0, y0, x2, y2, arch) {
+  const dx = x2 - x0, h = y0 - y2, lean = clamp(dx / (Math.abs(h) * .55 + 1), -1.6, 1.6), x1 = x0 - dx * .12, y1 = arch ? y0 - arch : y0 - h * (.72 + .32 * Math.min(1, Math.abs(lean)));
+  const Lc = Math.hypot(dx, h) + 1, n = Math.max(6, Math.ceil((Lc + (arch || 0)) / (7 * pen.u))), wa = Lc * R(.02, .06) * (rnd() < .5 ? 1 : -1), wf = R(1.2, 2.6), wp = R(TAU), nxp = h / Lc, nyp = dx / Lc, pts = []; let len = 0;
+  for (let i = 0; i <= n; i++) { const t = i / n, m = 1 - t, wob = Math.sin(t * PI * wf + wp) * wa * Math.sin(t * PI * .5); pts.push([m * m * x0 + 2 * m * t * x1 + t * t * x2 + nxp * wob, m * m * y0 + 2 * m * t * y1 + t * t * y2 + nyp * wob]); if (i) len += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); }
+  return { pts, len };
+}
+function leaf(pen, x, y, a, len, c, delay) { tip({ pen, x, y, a, len, w: len * R(.24, .34), prof: 1, c: [c[0], c[1], c[2] - 6], c2: lite(c, 12), shade: 1, sp: R(16, 26), wander: .03, turn: R(-.006, .006), delay: delay || 0 }); }
+function stemTo(pen, x0, y0, x2, y2, o) {
+  pen = orgPen(pen, x0, y0, 0); const u = pen.u;
+  // not aimed at a click: the stem sets off towards its goal, then bends and curls on its own, sometimes in a full loop
+  if (rnd() < .95) {
+    const L = Math.hypot(x2 - x0, y2 - y0) * R(1.1, 1.7), seed = R(100), sc = R(50, 120) * u, lp = R(.8, 1.7), cs = rnd() < .5 ? 1 : -1;      // cs: the way it curls over towards its tip
+    tip({ pen, x: x0, y: y0, a: Math.atan2(y2 - y0, x2 - x0) + gauss() * .6, len: L, w: o.w, tp: .55, c: o.c, c2: o.tip ? mixc(o.c, o.tip, .45) : null, cp: 2, shade: o.w > 2.2 * u ? 1 : 0, fz: 1, sp: o.sp || 30, delay: o.delay || 0, wander: .02,
+      steer(t, k) { t.a += (noise(t.d / sc + seed, seed * .7) * .05 + cs * Math.min(1, t.d / L * 1.6) * .012) * lp * k; },
+      every: o.leaf || 0, branch(t, f) { if (f < .88) leaf(pen, t.x, t.y, t.a + (rnd() < .5 ? 1 : -1) * R(.6, 1.1), R(14, 30) * u * (1 - f * .4) * (o.ls || 1), lite(o.c, 4)); },
+      end(t) { if (o.head) o.head(t.x, t.y, t.a); } });
+    return;
+  }
+  const p = mkPath(pen, x0, y0, x2, y2, o.arch);
+  tip({ pen, x: x0, y: y0, a: -PI / 2, path: p.pts, len: p.len, w: o.w, tp: .55, c: o.c, c2: o.tip ? mixc(o.c, o.tip, .45) : null, cp: 2, shade: o.w > 2.2 * u ? 1 : 0, fz: 1, sp: o.sp || 30, delay: o.delay || 0,
+    every: o.leaf || 0, branch(t, f) { if (f < .88) leaf(pen, t.x, t.y, t.a + (rnd() < .5 ? 1 : -1) * R(.6, 1.1), R(14, 30) * u * (1 - f * .4) * (o.ls || 1), lite(o.c, 4)); },
+    end(t) { if (o.head) o.head(t.x, t.y, t.a); } });
+}
+
+/* runners: long stems that keep on growing, wandering and looping in any direction, out of the frame and back in.
+   Along the way they throw leaves, curling side shoots and flowers, and leave places where other growth takes root */
+function runner(pen, x, y, a, o = {}) {
+  pen = orgPen(pen, x, y, 1); const u = pen.u, pal = o.pal || palette(), depth = o.depth || 0, c = o.c || jit(rnd() < .6 ? pal.stem : pal.moss[rnd() < .5 ? 0 : 1], 10, 7);
+  const len = o.len || R(1.1, 2.4) * Math.max(W, H), w = o.w || R(2, 3.6) * u, seed = R(100), lp = o.loop || R(.6, 1.3), sc = R(130, 260) * u, tx = R(.2, .8) * W, ty = R(.2, .8) * H;
+  return tip({ pen, x, y, a, len, w, tp: .72, c, c2: o.c2 || null, shade: w > 2.4 * u ? 1 : 0, gl: 1, sp: o.sp || R(30, 44), wander: .02, every: R(50, 110) * u * (1 + depth * .5), run: depth === 0,
+    steer(t, k) {
+      t.a += noise(t.d / sc + seed, seed * .3) * .028 * lp * k;            // the bend drifts slowly: long S-curves, now and then a whole loop
+      if (o.up) t.a += angDiff(-PI / 2, t.a) * .012 * k;                    // some that come in from the side turn and climb
+      if (t.x < -.1 * W || t.x > 1.1 * W || t.y < -.1 * H || t.y > 1.08 * H) t.a += angDiff(Math.atan2(ty - t.y, tx - t.x), t.a) * .025 * k;      // out of the frame for a while, then it comes back in
+    },
+    branch(t, f) {
+      addNode(t, pen); if (f > .97) return;
+      const q = rnd(), side = rnd() < .5 ? 1 : -1;
+      if (q < .4) leaf(pen, t.x, t.y, t.a + side * R(.6, 1.2), R(16, 40) * u * (depth ? .8 : 1), jit(c, 8, 6));
+      else if (q < .52 && depth < 2) runner(pen, t.x, t.y, t.a + side * R(.5, 1.3), { depth: depth + 1, pal, len: R(.15, .45) * Math.max(W, H), w: Math.max(1.1 * u, t.cw * R(.45, .7)), c: jit(c, 8, 6), sp: R(24, 36), loop: lp * R(1, 1.6) });
+      else if (q < .6) flower(pen, t.x, t.y, R(12, 26) * u, pal, t.a + side * R(.3, 1), pick([.1, .3, .7]));
+      else if (q < .66) bead(pen, t.x, t.y, R(1.8, 3.6) * u, pick(pal.pin), 0);
+    },
+    end(t) { if (o.end) o.end(t); else if (rnd() < (depth ? .5 : .8)) vineFlower(pen, t.x, t.y, t.a, pal); } });
+}
+let runT = 8;
+// a new runner now and then, never too many at once: from something that already grew, from an edge, or from the ground
+function runners(dt) {
+  if ((runT -= dt * (1 + eg)) > 0) return; runT = R(16, 30); if ((style.cur || style).noRun) return;
+  let n = 0; for (const t of tips) if (t.run) n++; if (n >= 3 || tips.length > MAXT * .7) return;
+  const l = pickL([.3, .4, .3]), u = l.pen.u, q = rnd();
+  if (q < .3 && nodes.length) { const nd = pick(nodes); runner(orgLike(l.pen, nd.pen), nd.x, nd.y, nd.a + (rnd() < .5 ? 1 : -1) * R(.4, 1.2)); return; }
+  if (q < .6) { const e = RI(0, 2); if (e < 2) { const left = e === 0, y = R(.1, .9) * H; runner(l.pen, left ? -.02 * W : 1.02 * W, y, (left ? 0 : PI) + R(-.5, .5), { up: rnd() < .25 }); }
+    else if (e === 2) { const x = R(.1, .9) * W; runner(l.pen, x, -.02 * H, PI / 2 + R(-.8, .8)); } else { const x = R(.1, .9) * W; runner(l.pen, x, H * 1.02, -PI / 2 + R(-1, 1)); } return; }
+  const x = R(.1, .9) * W, y = R(.15, .85) * H; fogRoot(l, x, y, 30 * u, 40 * u, 0, true); runner(l.pen, x, y, R(TAU));      // out of a pocket of mist, mid-frame
+}
+
+/* vines */
+const nodes = [];
+function addNode(t, pen) { nodes.push({ x: t.x, y: t.y, a: t.a, pen, t: time }); if (nodes.length > 260) nodes.shift(); }
+function vineFlower(pen, x, y, a, pal, fast) { const p2 = pen.layer === LAYERS[2] || pen.layer.name === 'far' ? pen : orgLike(LAYERS[2].pen, pen); flower(p2, x, y, R(22, 44) * p2.u, pal, a, pick([.3, .3, .86, .96, .1]), fast); }
+function vine(pen, x, y, a, len, w, c, depth, pal) {
+  pen = orgPen(pen, x, y, 1); const u = pen.u;
+  tip({ pen, x, y, a, len, w, tp: .82, c, shade: 1, gl: 1, sp: R(34, 50), wander: .05, turn: R(-.006, .006), every: R(60, 120) * u * (1 + depth * .4),
+    steer(t, k) { if (Math.sin(t.a) > .45) t.a -= .03 * k * Math.sign(Math.cos(t.a) || 1); if (t.x < W * .04 || t.x > W * .96 || t.y < H * .06) t.a += angDiff(Math.atan2(H * .5 - t.y, W * .5 - t.x), t.a) * .04 * k; },
+    branch(t, f) {
+      addNode(t, pen);
+      const q = rnd(), side = rnd() < .5 ? 1 : -1;
+      if (depth < 2 && q < .4 && t.cw > 3 * u) vine(pen, t.x, t.y, t.a + side * R(.5, 1.1), len * (1 - f) * R(.5, .9) + 50 * u, t.cw * R(.55, .78), jit(c, 8, 6), depth + 1, pal);
+      else if (q < .62) leaf(pen, t.x, t.y, t.a + side * R(.6, 1.2), R(22, 48) * u, jit(c, 8, 6));
+      else if (q < .82) tendril(pen, t.x, t.y, t.a + side * R(.4, 1.3), R(40, 130) * u, Math.max(.8 * u, t.cw * .14), lite(jit(c, 8, 6), 6));
+      else if (q < .9) frond(pen, t.x, t.y, t.a + side * R(.5, 1.1), R(30, 80) * u, soft(curP().hues[curP().act[1]]));
+    },
+    end(t) { if (rnd() < .3) vineFlower(pen, t.x, t.y, t.a, pal); } });
+}
+// a spine that crosses the frame on a slant, corner to corner: the main bundle
+function diagSpine() { const fl = rnd() < .5, X = x => fl ? 1 - x : x; return mkSpine([X(R(-.1, .2)), 1.12, X(R(.15, .4)), R(.55, .8), X(R(.55, .8)), R(.25, .5), X(R(.85, 1.15)), -.12]); }
+// a tendril: thin, reaching out, and coiling ever tighter towards its end
+function tendril(pen, x, y, a, len, w, c) {
+  const s = rnd() < .5 ? 1 : -1, k0 = R(.003, .01), k1 = R(.05, .11);
+  tip({ pen, x, y, a, len, w, tp: .5, c, c2: lite(c, 10), sp: R(22, 34), wander: .03, steer(t, k) { const f = t.d / t.len; t.a += s * (k0 + k1 * f * f * f) * k; },
+    end: rnd() < .3 ? e => bead(pen, e.x, e.y, R(1, 1.8) * pen.u, lite(c, 14), 4) : null });
+}
+// a feathery frond: a thin stem with fine hairs on both sides, shorter towards the tip
+function frond(pen, x, y, a, len, c) {
+  const u = pen.u, s0 = rnd() < .5 ? 1 : -1;
+  tip({ pen, x, y, a, len, w: 1.1 * u, tp: .6, c, c2: lite(c, 10), sp: R(18, 28), wander: .04, turn: s0 * R(.002, .008), every: 3.4 * u,
+    branch(t, f) { const hl = len * .22 * (1 - f * .8) * R(.7, 1.1); for (const sd of [1, -1]) tip({ pen, x: t.x, y: t.y, a: t.a + sd * R(.7, 1.1), len: hl, w: .8 * u, tp: .5, c: lite(c, 4), c2: lite(c, 16), sp: R(10, 16), wander: .1, turn: -sd * .01, end: rnd() < .3 ? e => dot(pen, e.x, e.y, .9 * u, lite(c, 20), 10) : null }); } });
+}
+// a little cluster of flowers on short stalks from one point
+function umbel(pen, x, y, a, pal) {
+  const u = pen.u, n = RI(3, 6), L = R(25, 55) * u, c = pal.stem;
+  for (let i = 0; i < n; i++) { const b = a + (i - (n - 1) / 2) * R(.25, .4); tip({ pen, x, y, a: b, len: L * R(.7, 1.1), w: .9 * u, tp: .4, c, c2: lite(c, 8), sp: R(16, 24), wander: .05, delay: i * .2, end: e => flower(pen, e.x, e.y, R(7, 14) * u, pal, b, pick([.1, .3, .7])) }); }
+}
+
+/* ───────────── fading and background ───────────── */
+// old growth dissolves in soft vertical veils, so nothing is left hanging in mid-air
+/* dying: instead of fading or being wiped away, the oldest growth dies where it stands. It turns brown and dry, sags and
+   droops under its own weight, then crumbles away into seeds that fall and spores that drift off */
+const decays = []; let decayT = 6; const dTmp = document.createElement('canvas'), dTx = dTmp.getContext('2d');
+function mist(dt) {
+  const mf = style.mist * season.fade; if (!mf || life.arr) return;
+  decayT -= dt * mf * 2.4 * (1 + eg * .5);
+  if (decayT <= 0 && decays.length < 4) { decayT = R(5, 9); startDecay(); }
+  for (let i = decays.length - 1; i >= 0; i--) if (stepDecay(decays[i], dt)) decays.splice(i, 1);
+}
+function startDecay() {
+  // the oldest patch of growth in a layer, picked among the oldest few so it is not always the same corner
+  const l = pickL([.28, .32, .3, .1]), ag = l.ag; let best = -1, bt = 1e9;
+  for (let k = 0; k < 40; k++) { const id = (rnd() * ag.length) | 0; if (ag[id] && ag[id] < bt && time - ag[id] > 40) { bt = ag[id]; best = id; } }
+  if (best < 0) return;
+  const x = ((best % GW) + .5) / GW * W, y = (((best / GW) | 0) + .5) / GH * H, r = R(.07, .14) * Math.max(W, H);
+  for (let i = tips.length - 1; i >= 0; i--) { const t = tips[i]; if (t.pen.layer === l && Math.hypot(t.x - x, t.y - y) < r) { tips[i] = tips[tips.length - 1]; tips.pop(); } }
+  const bl = []; for (let i = 0; i < 5; i++) bl.push([gauss() * r * .35, gauss() * r * .3, R(.45, .8)]);      // an irregular patch made of a few soft blobs, never a clean circle
+  decays.push({ l, x, y, r, t: 0, D: R(22, 34), acc: 0, P: curP(), bl, sag: 0 });
+}
+function stepDecay(d, dt) {
+  d.t += dt; d.acc += dt; if (d.acc < .25) return false; d.acc = 0;
+  const p = d.t / d.D, l = d.l, k = l.ctx, u = l.pen.u, x = d.x, y = d.y, r = d.r; if (FF) batFlush(k); l.d = 1;
+  // 1 · it browns and dries: tint only what is there (source-atop), strongest in the middle
+  const blobs = (fn) => { for (const b of d.bl) { const bx = x + b[0], by = y + b[1], br = r * b[2], g = k.createRadialGradient(bx, by, 0, bx, by, br); fn(g); k.fillStyle = g; k.fillRect(bx - br, by - br, br * 2, br * 2); } };
+  if (p < .6) { k.save(); k.globalCompositeOperation = 'source-atop'; blobs(g => { g.addColorStop(0, `hsla(30,32%,${28 + 10 * rnd() | 0}%,.03)`); g.addColorStop(.6, 'hsla(32,30%,34%,.015)'); g.addColorStop(1, 'hsla(32,30%,34%,0)'); }); k.restore(); }
+  // 2 · it sags: the middle of the patch slides down a little at a time, softly, so it droops instead of moving as a block
+  if (p > .2 && p < .75 && d.sag < 9 * u && rnd() < .2) {
+    const sx = Math.max(0, Math.floor((x - r) / W * l.cv.width)), sy = Math.max(0, Math.floor((y - r) / H * l.cv.height)), sw = Math.min(l.cv.width - sx, Math.ceil(r * 2 / W * l.cv.width)), shh = Math.min(l.cv.height - sy, Math.ceil(r * 2 / H * l.cv.height));
+    if (sw > 4 && shh > 4) {
+      const kx = l.cv.width / W, cx = (x / W * l.cv.width) - sx, cy = (y / H * l.cv.height) - sy, rr = r * kx * .8, dy = 1; d.sag += 1 / kx;
+      if (dTmp.width < sw || dTmp.height < shh) { dTmp.width = Math.max(dTmp.width, sw); dTmp.height = Math.max(dTmp.height, shh); }
+      dTx.setTransform(1, 0, 0, 1, 0, 0); dTx.clearRect(0, 0, sw, shh); dTx.globalCompositeOperation = 'source-over'; dTx.drawImage(l.cv, sx, sy, sw, shh, 0, 0, sw, shh);
+      const mask = c => { const g = c.createRadialGradient(cx, cy, 0, cx, cy, rr); g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(.55, 'rgba(0,0,0,.7)'); g.addColorStop(1, 'rgba(0,0,0,0)'); return g; };
+      dTx.globalCompositeOperation = 'destination-in'; dTx.fillStyle = mask(dTx); dTx.fillRect(0, 0, sw, shh); dTx.globalCompositeOperation = 'source-over';
+      k.save(); k.setTransform(1, 0, 0, 1, 0, 0); k.globalCompositeOperation = 'destination-out'; k.translate(sx, sy); k.fillStyle = mask(k); k.fillRect(0, 0, sw, shh); k.globalCompositeOperation = 'source-over'; k.drawImage(dTmp, 0, 0, sw, shh, 0, dy, sw, shh); k.restore();
+    }
+  }
+  // 3 · it crumbles: grains break away and fall as seeds, a few spores drift up, the rest wears thin
+  if (p > .45) {
+    const n = Math.round(14 + 40 * (p - .45)); k.save(); k.globalCompositeOperation = 'destination-out';
+    for (let i = 0; i < n; i++) { const gx = x + gauss() * r * .45, gy = y + gauss() * r * .45, gr = R(1, 3.2) * u; k.fillStyle = `rgba(0,0,0,${R(.5, 1).toFixed(2)})`; k.beginPath(); k.arc(gx, gy, gr, 0, TAU); k.fill(); if (i % 5 === 0) addP(gx, gy, 5, rnd() < .6 ? [32 + R(-6, 6), 34, R(26, 40)] : mixc(soft(d.P.hues[d.P.act[0]]), DRY, .55)); }
+    const am = (.03 + .08 * (p - .45)).toFixed(3); blobs(g => { g.addColorStop(0, `rgba(0,0,0,${am})`); g.addColorStop(.5, `rgba(0,0,0,${(am * .5).toFixed(3)})`); g.addColorStop(1, 'rgba(0,0,0,0)'); }); k.restore();
+    if (rnd() < .4) addP(x + gauss() * r * .4, y + gauss() * r * .4, 2, soft(d.P.hues[d.P.act[1]]));
+  }
+  if (p >= 1) {
+    k.save(); k.globalCompositeOperation = 'destination-out'; blobs(g => { g.addColorStop(0, 'rgba(0,0,0,.7)'); g.addColorStop(.45, 'rgba(0,0,0,.35)'); g.addColorStop(1, 'rgba(0,0,0,0)'); }); k.restore();
+    const ag = l.ag; for (let j = 0; j < GH; j++) for (let i = 0; i < GW; i++) { const cx = (i + .5) / GW * W, cy = (j + .5) / GH * H; if (Math.hypot(cx - x, cy - y) < r * .8) ag[j * GW + i] = 0; }
+    for (let i = colOf(x - r); i <= colOf(x + r); i++) l.occ[i] *= .5;
+    for (let i = beads.length - 1; i >= 0; i--) if (beads[i].pen.layer === l && Math.hypot(beads[i].x - x, beads[i].y - y) < r * .8) { beads[i] = beads[beads.length - 1]; beads.pop(); }
+    for (let i = nodes.length - 1; i >= 0; i--) if (nodes[i].pen.layer === l && Math.hypot(nodes[i].x - x, nodes[i].y - y) < r * .8) nodes.splice(i, 1);
+    for (let i = perches.length - 1; i >= 0; i--) if (perches[i][2].layer === l && Math.hypot(perches[i][0] - x, perches[i][1] - y) < r * .8) perches.splice(i, 1);
+    return true;
+  }
+  return false;
+}
+// growth that starts in mid-space rises out of a pocket of mist: its foot dissolves, so it never hangs in the air
+function fogRoot(l, x, y, r, h, dir = 1, noVeil) {
+  let n = 0, acc = 0; const ry = Math.max(r * .7, h * .5), rx = Math.max(r * 1.6, h * .55);
+  procs.push(dt => {
+    acc += dt; if (acc < .7) return; acc = 0; n++; if (noVeil && n > 12) return false;
+    const k = l.ctx, g = k.createRadialGradient(0, 0, 0, 0, 0, 1); if (FF) batFlush(k);
+    k.save(); k.translate(x, y + dir * ry * .22);
+    if (n <= 12) { k.scale(rx, ry); g.addColorStop(0, 'rgba(0,0,0,.3)'); g.addColorStop(.45, 'rgba(0,0,0,.2)'); g.addColorStop(1, 'rgba(0,0,0,0)'); k.globalCompositeOperation = 'destination-out'; }
+    else { k.scale(rx * 1.5, ry * .62); const q = `${clamp(bgBot[0] * 1.1 + 30, 0, 255) | 0},${clamp(bgBot[1] * 1.1 + 30, 0, 255) | 0},${clamp(bgBot[2] * 1.1 + 30, 0, 255) | 0}`; g.addColorStop(0, `rgba(${q},.1)`); g.addColorStop(.5, `rgba(${q},.05)`); g.addColorStop(1, `rgba(${q},0)`); }
+    k.fillStyle = g; k.beginPath(); k.arc(0, 0, 1, 0, TAU); k.fill(); k.restore(); l.d = 1;
+    if (n > 14) return false;
+  });
+}
+/* the long run: the garden fills, rests, and is then slowly renewed by a bank of fog that drifts across;
+   new growth follows behind it, with a slightly different accent each time */
+const LAG = [.45, .22, 0, 0];      // the fog reaches the layers further back a little later, so the scene is never bare
+const season = { t: 0, len: 480, n: 0, grow: 1, fade: .3, front: null, count: 0,
+  reset() { this.t = 0; this.len = R(440, 620); this.n = 0; this.front = null; this.grow = 1; this.fade = .3; },
+  gap() { return this.front ? R(2.6, 4.4) : R(4, 7) * (1 + this.n / 26) / this.grow; },
+  fx(l) { const F = this.front; return F.x - F.dir * LAG[LAYERS.indexOf(l)] * W; },
+  ok(x, l) { const F = this.front; return !F || (x - this.fx(l)) * F.dir < -.13 * W; },
+  // a place for new growth: anywhere, or behind the fog while it is passing
+  pick(l) { const F = this.front; if (!F) return R(.08, .92) * W; const e = this.fx(l) - F.dir * .14 * W, a = F.dir > 0 ? .03 * W : e, b = F.dir > 0 ? e : .97 * W; return b - a > .05 * W ? R(a, b) : null; },
+  update(dt) {
+    if (style.cycle) { style.cycle(dt); while (nodes.length && time - nodes[0].t > 200) nodes.shift(); return; }
+    if (!style.mist) { this.fade = 1; return; }
+    this.t += dt; const f = this.t / this.len;
+    this.grow = f < .48 ? 1 : f < .66 ? .2 : .85; this.fade = f < .66 ? .3 : .4;
+    if (true) { if (f >= .66) { this.grow = f < .9 ? .12 : .6; this.fade = f < .9 ? 1.7 : .5; } }      // growth that spans the whole frame thins out evenly instead
+    else if (false) { const dir = rnd() < .5 ? 1 : -1; this.front = { dir, x: dir > 0 ? -.2 * W : 1.2 * W, sp: 1.9 * W / (this.len * .34), acc: 0 }; this.n = 0; }
+    if (this.front) this.sweep(dt);
+    if (f >= 1) { this.reset(); this.count++; this.next(); }
+    while (nodes.length && time - nodes[0].t > 200) nodes.shift();
+  },
+  sweep(dt) {
+    const F = this.front; F.x += F.dir * F.sp * dt; F.acc += dt; if (F.acc < .25) return; F.acc = 0;
+    const r = .12 * W, inBand = (x, l) => { const q = (x - this.fx(l)) * F.dir; return q > -r && q < r; };
+    if (FF) batAll();
+    for (const l of LAYERS) {
+      const x = this.fx(l), k = l.ctx, g = k.createLinearGradient(x - F.dir * r, 0, x + F.dir * r, 0);      // from the trailing edge to the leading edge
+      g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(.14, 'rgba(0,0,0,.22)'); g.addColorStop(.5, 'rgba(0,0,0,.1)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      k.globalCompositeOperation = 'destination-out'; k.fillStyle = g; k.fillRect(x - r, -H * .1, r * 2, H * 1.3); k.globalCompositeOperation = 'source-over'; l.d = 1;
+      const bx = x - F.dir * r; if (bx > 0 && bx < W) l.occ[colOf(bx)] = 0;
+    }
+    for (let i = tips.length - 1; i >= 0; i--) if (inBand(tips[i].x, tips[i].pen.layer)) { tips[i] = tips[tips.length - 1]; tips.pop(); }
+    for (let i = beads.length - 1; i >= 0; i--) if (inBand(beads[i].x, beads[i].pen.layer)) { beads[i] = beads[beads.length - 1]; beads.pop(); }
+    for (let i = nodes.length - 1; i >= 0; i--) if (inBand(nodes[i].x, nodes[i].pen.layer)) nodes.splice(i, 1);
+    for (let i = perches.length - 1; i >= 0; i--) if (inBand(perches[i][0], perches[i][2].layer)) perches.splice(i, 1);
+  },
+  next() {
+    const P = curP(), h = P.hues.map((_, i) => i), a = rnd() < .5 ? P.act[0] : h[Math.floor(rnd() * h.length)]; let b = a; while (b === a) b = h[Math.floor(rnd() * h.length)];
+    P.act = [a, b]; palVer++;
+    this.bias = pick([0, 0, 1, 2]);
+  },
+  bias: 0,
+};
+// fog and light: blurry gradients that drift and breathe
+const blobs = []; for (let i = 0; i < 9; i++) blobs.push({ sx: R(100), sy: R(100), r: R(.3, .6), ph: R(TAU), kind: i < 3 ? 0 : i < 6 ? 1 : 2 });
+function drawBg(dt, colourOnly) {
+  const P = curP(), f = Math.min(1, dt * (bgSlow ? .035 : .8));
+  for (let i = 0; i < 3; i++) { bgTop[i] += (P.top[i] - bgTop[i]) * f; bgBot[i] += (P.bot[i] - bgBot[i]) * f; }
+  hazeL = (bgTop[0] * .3 + bgTop[1] * .59 + bgTop[2] * .11 + bgBot[0] * .3 + bgBot[1] * .59 + bgBot[2] * .11) / 2 / 255 * 100;
+  SH = `${(bgBot[0] * .16) | 0},${(bgBot[1] * .1) | 0},${(bgBot[2] * .24) | 0}`;
+  if (colourOnly) return;
+  const w = bgCv.width, h = bgCv.height, bt = window.__calm ? (drawBg.t0 = drawBg.t0 || vtime) : (drawBg.t0 = 0, vtime), br = Math.sin(bt * .45), br2 = Math.sin(bt * .29 + 1.3), ga = bt * .03;
+  const k1 = 1 + br * .07, k2 = 1 - br * .05, rgb = (c, k, add = 0) => `${clamp(c[0] * k + add, 0, 255) | 0},${clamp(c[1] * k + add, 0, 255) | 0},${clamp(c[2] * k + add, 0, 255) | 0}`;
+  const g = bgCtx.createLinearGradient(w * (.5 - Math.sin(ga) * .45), h * (.1 - Math.cos(ga) * .1), w * (.5 + Math.sin(ga) * .45), h);
+  g.addColorStop(0, `rgb(${rgb(bgTop, k1)})`); g.addColorStop(.5 + br2 * .12, `rgb(${rgb([(bgTop[0] + bgBot[0]) / 2, (bgTop[1] + bgBot[1]) / 2, (bgTop[2] + bgBot[2]) / 2], 1)})`); g.addColorStop(1, `rgb(${rgb(bgBot, k2)})`);
+  bgCtx.fillStyle = g; bgCtx.fillRect(0, 0, w, h);
+  if (!(frameN % 30)) document.body.style.background = stage.style.background = `rgb(${rgb(bgBot, 1)})`;
+  const hue = P.hues[P.act[0]], light = hazeL > 50;
+  for (const o of blobs) {
+    const pulse = 1 + .22 * Math.sin(vtime * .32 + o.ph), x = (.5 + noise(o.sx + vtime * .035, o.sy) * 1.2) * w, y = (.42 + noise(o.sy + vtime * .028, o.sx) * 1.0) * h, r = o.r * pulse * Math.max(w, h);
+    let c0, c1, sy = 1;
+    if (o.kind === 0) { const q = rgb(bgBot, 1.12, light ? 26 : 34), a = (.3 + .12 * Math.sin(vtime * .4 + o.ph)).toFixed(3); c0 = `rgba(${q},${a})`; c1 = `rgba(${q},0)`; }              // light
+    else if (o.kind === 1) { const q = light ? '255,255,255' : rgb(bgBot, 1.25, 30), a = (.2 + .08 * Math.sin(vtime * .26 + o.ph)).toFixed(3); c0 = `rgba(${q},${a})`; c1 = `rgba(${q},0)`; sy = .42; }   // fog bank
+    else { const l = clamp(hazeL + (light ? 8 : 16), 20, 88) | 0, a = (.16 + .07 * Math.sin(vtime * .35 + o.ph)).toFixed(3); c0 = `hsla(${hue[0]},${(hue[1] * .7) | 0}%,${l}%,${a})`; c1 = `hsla(${hue[0]},${(hue[1] * .7) | 0}%,${l}%,0)`; }   // a breath of colour
+    const rg = bgCtx.createRadialGradient(0, 0, 0, 0, 0, r); rg.addColorStop(0, c0); rg.addColorStop(.55, c0.replace(/[\d.]+\)$/, m => (parseFloat(m) * .45).toFixed(3) + ')')); rg.addColorStop(1, c1);
+    bgCtx.save(); bgCtx.translate(x, y); bgCtx.scale(1, sy); bgCtx.fillStyle = rg; bgCtx.beginPath(); bgCtx.arc(0, 0, r, 0, TAU); bgCtx.fill(); bgCtx.restore();
+  }
+  const lg = bgCtx.createLinearGradient(0, h * .5, 0, h); lg.addColorStop(0, `rgba(${SH},0)`); lg.addColorStop(1, `rgba(${SH},${(.34 + br2 * .06).toFixed(3)})`); bgCtx.fillStyle = lg; bgCtx.fillRect(0, 0, w, h);
+}
+
+/* ───────────── garden styles ───────────── */
+function pickL(w) { let q = rnd(); for (let i = 0; i < w.length; i++) if ((q -= w[i]) < 0) return LAYERS[i]; return LAYERS[2]; }
+
+/* 1 · Terrain: tufts of filament grass that spread from a point along rolling ridges */
+function ridgeCols(rd) {
+  const P = curP(), sw = rd.i % 2, m0 = P.moss[sw], m1 = P.moss[1 - sw];
+  rd.c1 = [m0[0] + R(-6, 6), m0[1], Math.min(86, m0[2] + 8 + R(-3, 3))]; rd.c2 = [m1[0] + R(-6, 6), m1[1] + 6, Math.max(14, m1[2] - 14 + R(-3, 3))];
+  rd.fr = P.fr || P.hues[P.act[1]]; rd.frD = [rd.fr[0], rd.fr[1] * .9, Math.max(20, rd.fr[2] - 9)]; rd.pv = palVer;
+}
+function strand(rd, x) {
+  const pen0 = rd.layer.pen, u = pen0.u, y0 = rd.y(x), nxt = rd.next, depth = nxt ? nxt.y(x) - y0 : H * 1.08 - y0;
+  if (depth < 5 * u) return;
+  const NSG = 20, tf = rnd() < .12 ? R(6, 18) * u : R(0, 5) * u, sy = (depth * 1.25 + 20 * u + tf) / NSG, pz = noise(x / W * 4.2 + rd.seed * 2, rd.seed), powder = pz > -.05;
+  const lz = noise(x / W * 3.1 + rd.seed * 5, rd.seed * 1.7 + 4), c2 = lz > .15 ? mixc(rd.c2, rd.frD, clamp((lz - .15) * 4, 0, .75)) : rd.c2, c1 = powder ? mixc(rd.c1, rd.fr, clamp((pz + .05) * 2.2, 0, .6)) : rd.c1;
+  const jit = R(-.3, .3), ph = R(0, 6.28), wv = R(.25, .6), wf = rd.wf || (rd.wf = R(3, 6));
+  let px = x, py = y0 - tf, len = 0, a = rd.lean * .6 + jit, raw = [[px, py]]; const cut = R(2, 26) * u;      // ragged roots, so a ridge has no clean lower line
+  for (let s = 0; s < NSG; s++) {
+    // every blade bends gradually: its angle eases toward a soft target (no hard limit, so no kinks), each blade with its own sway
+    const tg = 1.05 * Math.tanh(rd.lean + .3 * Math.sin(px / W * wf + rd.seed * 3) + noise(px / U * .003 + rd.seed, py / U * .0042 + time * .003) * 1.5 + jit + .15 * Math.sin(s * wv + ph));
+    a += (tg - a) * .22; const nx = px + Math.tan(a) * sy * .8;
+    len += Math.hypot(nx - px, sy); px = nx; py += sy; raw.push([px, py]);
+    if (nxt && s > 0 && py > nxt.y(px) + cut) break;
+  }
+  let pts = raw; for (let k = 0; k < 2; k++) { const q = [pts[0]]; for (let i = 0; i < pts.length - 1; i++) { const A = pts[i], B = pts[i + 1]; q.push([A[0] * .75 + B[0] * .25, A[1] * .75 + B[1] * .25], [A[0] * .25 + B[0] * .75, A[1] * .25 + B[1] * .75]); } q.push(pts[pts.length - 1]); pts = q; }   // round off what is left
+  pts.reverse();                                        // the strand rises from the fold to its tip
+  const dark = 13 * noise(x / U * .016 + rd.seed * 3, y0 / U * .006) + R(-7, 7);
+  const pen = orgPen(pen0, pts[0][0], pts[0][1], 0, Math.floor(x / (70 * U)) * 17 + rd.i * 7);
+  tip({ pen, x: pts[0][0], y: pts[0][1], a: -PI / 2, path: pts, len, w: 1.9 * u, tp: .3, c: [c2[0], c2[1], c2[2] - 8], c2: lite(c1, 10), cp: 1.25, dl: dark, sp: R(70, 110),
+    end: t => { dot(pen, t.x, t.y, R(.8, 1.4) * u, powder ? rd.fr : c1, R(14, 26)); if (powder && rnd() < .55) froth(pen, t.x, t.y, rd.fr, u); } });
+}
+// a froth of fine specks at the crest, like seed heads catching the light
+function froth(pen, x, y, c, u) { const n = RI(2, 5); for (let i = 0; i < n; i++) dot(pen, x + gauss() * 3.2 * u, y + gauss() * 2.6 * u - 1.5 * u, R(.45, .9) * u, c, R(10, 30), R(.6, 1)); }
+// loose wires: a few very thin long stems that arc up and over the grass in mixed colours
+function wires(l, x, y) {
+  const pen = l.pen, u = pen.u, pal = palette(), P = curP(), n = RI(3, 7), cs = [pal.stem, P.fr || P.hues[P.act[1]], pick(pal.pin), lite(pal.stem, 18), soft(P.hues[P.act[0]])];
+  for (let i = 0; i < n; i++) { const s = rnd() < .5 ? 1 : -1, k = R(.003, .012), c = pick(cs);
+    tip({ pen, x: x + gauss() * 12 * u, y: y + R(0, 6) * u, a: -PI / 2 + s * R(0, .5), len: R(120, 340) * u, w: R(.6, 1) * u, tp: .3, c, c2: lite(c, 10), sp: R(26, 40), wander: .02, delay: R(0, 3), steer(t, kk) { t.a += s * k * kk; } }); }
+}
+PALETTES[0].fr = [272, 50, 72];
+// a grass bush: a dense clump of combed filaments from one cluster of roots, fanning out. The back of the clump grows first and darker,
+// the front later and lighter, so it has depth; the roots sit in a loose oval, so there is no straight line at the bottom
+function grassBush(l, x, y, s) {
+  const pen = orgPen(l.pen, x, y, 0), u = pen.u, rd = { i: RI(0, 9), layer: l }; ridgeCols(rd);
+  s = s || R(.7, 1.4); const h = R(120, 250) * u * s, rx = R(30, 60) * u * s, n = Math.round(R(170, 300) * s), fl = rnd() < .5;
+  for (let i = 0; i < n; i++) {
+    const dz = rnd(), g = clamp(gauss() * .55, -1.2, 1.2), bx = x + g * rx + gauss() * 4 * u, by = y + (dz - .5) * 16 * u * s + Math.abs(g) * 6 * u;      // dz: 0 at the back, 1 at the front
+    const a = -PI / 2 + g * R(.6, 1) + gauss() * .12, len = h * (1 - .45 * Math.abs(g)) * R(.55, 1.05) * (.8 + .3 * (1 - dz)), dk = (1 - dz) * 12, c1 = rnd() < .3 ? mixc(rd.c1, rd.fr, R(.2, .6)) : rd.c1;
+    tip({ pen, x: bx, y: by, a, len, w: R(1.3, 2.2) * u, tp: .45, c: [rd.c2[0], rd.c2[1], rd.c2[2] - 6 - dk], c2: lite(c1, 8 - dk * .5), cp: 1.2, sp: R(40, 70), wander: .04, turn: g * R(.002, .006), droop: g * .004, delay: dz * 3 + R(0, 1.2),
+      end: rnd() < .3 ? t => { dot(pen, t.x, t.y, R(.8, 1.5) * u, fl ? rd.fr : c1, 14); if (rnd() < .4) froth(pen, t.x, t.y, fl ? rd.fr : lite(c1, 10), u); } : null });
+  }
+  if (rnd() < .35) wires(l, x, y);
+}
+const terrain = {
+  name: 'Terrain', pal: 0, mist: 0,
+  init(soft) {
+    this.cap = 1; this.rs = []; const N = 11, mx = R(.3, .7);
+    for (let i = 0; i < N; i++) {
+      const f = i / (N - 1), base = lerp(.13, .98, Math.pow(f, .95)), seed = R(100), amp = lerp(.05, .085, f), slope = R(.03, .13) * (rnd() < .5 ? 1 : -1) * (1 - f * .5);
+      const rd = { i, seed, f, lean: R(-.3, .3), layer: LAYERS[i < 2 ? 0 : i < 5 ? 1 : i < 10 ? 2 : 3], t: new Float32Array(GW).fill(-1e6),
+        y: x => H * (base + slope * (x / W - .5) + amp * noise(x / W * lerp(3.2, 2, f) + seed, seed * .7) + amp * .6 * noise(x / W * 6.5 + seed, 3.1) - .07 * Math.exp(-((((x / W) - mx) / .24) ** 2)) * (1 - f * .5)) };
+      ridgeCols(rd); this.rs.push(rd);
+    }
+    for (let i = 0; i < N - 1; i++) this.rs[i].next = this.rs[i + 1];
+    this.active = 0; this.ft = 8;
+    if (!soft) { for (const rd of this.rs) { this.tuft(rd, R(.15, .5) * W); this.tuft(rd, R(.5, .85) * W); } for (let i = 0; i < 4; i++) later(R(1, 12), () => this.bush()); }
+  },
+  // a tuft starts at one point and spreads sideways, slowing as it widens
+  tuft(rd, x0, boost = 1) {
+    const u = rd.layer.pen.u, dx = 1.3 * u, total = 2 * Math.ceil(R(.07, .17) * W / dx) + 1, self = this; let k = 0, acc = 0; this.active++;
+    procs.push(dt => {
+      if (!live(self)) return false;
+      acc += dt * Math.max(14, (total - k) * .5) * boost * (1 + 3 * Math.min(1, eX(x0)) + eg);
+      while (acc >= 1 && k < total) { acc--; const j = k++, x = x0 + ((j + 1) >> 1) * (j % 2 ? 1 : -1) * dx + R(-.5, .5) * u; if (x < -12 || x > W + 12) continue; if (rd.pv !== palVer) ridgeCols(rd); strand(rd, x); rd.t[colOf(x)] = time; }
+      if (k >= total) { self.active--; return false; }
+    });
+  },
+  flower(rd, x, y) {
+    const pen0 = rd.layer.pen, u = pen0.u, pal = palette(), by = y === undefined ? rd.y(x) + R(6, 34) * u : y, q = rnd(), st = jit(pal.stem, 8, 6), pen = orgPen(pen0, x, by, 0);
+    if (q < .7) { const n = RI(1, 3); for (let i = 0; i < n; i++) { const r = R(15, 34) * u, bx = x + gauss() * 20 * u; stemTo(pen, bx, by + gauss() * 6 * u, bx + gauss() * 60 * u, by - R(40, 150) * u, { w: 2 * u, c: st, sp: 26, delay: i * 1.5, leaf: R(26, 44) * u, head: (hx, hy, a) => flower(pen, hx, hy, r, pal, a, rnd() < .7 ? .1 : .7) }); } }
+    else { const n = RI(3, 5); for (let i = 0; i < n; i++) { const d = R(70, 220) * u * (rnd() < .5 ? 1 : -1); stemTo(pen, x + gauss() * 6 * u, by, x + d, by + R(-30, 14) * u, { w: R(1, 1.6) * u, c: jit(pal[0], 10, 8), arch: R(100, 240) * u, sp: 40, delay: i * .8 }); } }
+  },
+  // a grass bush sitting on one of the ridges, its roots a little below the crest
+  bush(x) { const rd = this.rs[RI(1, 9)], u = rd.layer.pen.u; x = x === undefined ? R(.05, .95) * W : x; grassBush(rd.layer, x, rd.y(x) + R(6, 26) * u, R(.8, 1.5)); },
+  ridgeAt(x, y) { let b = this.rs[0]; for (const rd of this.rs) if (rd.y(x) <= y + 10 * U) b = rd; return b; },
+  auto(dt) {
+    if (this.active < Math.max(1, Math.round((5 + eg * 3) * this.cap))) {
+      const rd = pick(this.rs); let bc = 0, bt = 1e12;
+      for (let k = 0; k < 6; k++) { const c = RI(0, GW - 1); if (rd.t[c] < bt) { bt = rd.t[c]; bc = c; } }
+      this.tuft(rd, (bc + rnd()) / GW * W, bt < -1e5 ? 1.6 : 1);
+    }
+    this.ft -= dt * (1 + eg);
+    if (this.ft <= 0) { this.ft = R(2.5, 5); const q = rnd(); if (q < .2) this.fromSide(); else if (q < .48) this.bush(); else if (q < .62) { const rd = this.rs[RI(2, 10)], x = R(.05, .95) * W; wires(rd.layer, x, rd.y(x) + 8 * rd.layer.pen.u); } else { const rd = this.rs[RI(1, 9)], x = R(.04, .96) * W; if (rd.t[colOf(x)] > -1e5) this.flower(rd, x); } }
+  },
+  at(x, y) { const rd = this.ridgeAt(x, y); if (this.active < 11) this.tuft(rd, x, 2); if (rd.layer.name !== 'near' && rnd() < .5) this.flower(rd, x, Math.max(y, rd.y(x) + 4 * U)); },
+  G(li, x) { return this.rs[[1, 5, 9, 10][li]].y(x); },
+  // arching stems that reach in from the left or right edge
+  fromSide() { const l = LAYERS[rnd() < .4 ? 1 : 2], u = l.pen.u, pal = palette(), left = rnd() < .5, x0 = left ? -.02 * W : 1.02 * W, y0 = R(.15, .85) * H, n = RI(2, 4), pen = orgPen(l.pen, x0, y0, 0);
+    const up = rnd() < .25;
+    for (let i = 0; i < n; i++) { const r = R(14, 30) * u, tx = (left ? R(.1, .42) : R(.58, .9)) * W, ty = up ? y0 - R(.25, .5) * H : y0 + R(-.2, .12) * H; stemTo(pen, x0, y0 + gauss() * 10 * u, tx, ty, { w: R(1.8, 3) * u, c: jit(pal.stem, 8, 6), sp: 30, delay: i * 1.4, leaf: R(28, 46) * u, arch: R(40, 140) * u, head: (hx, hy, a) => flower(pen, hx, hy, r, pal, a, rnd() < .7 ? .1 : .7) }); } },
+  kind() { return rnd() < .7 ? .1 : .7; },
+};
+
+/* 2 · Mound: tall corals rooted in the ground, with cushions and shrubs taking root on their branches */
+const mound = {
+  name: 'Mound', pal: 1, mist: .7,
+  init() { this.cx = R(.4, .6); this.wd = R(.3, .42); this.top = R(.1, .2); this.t = .2; this.open = 12; for (const l of LAYERS) l.occ.fill(0); },
+  m(x) { const s = Math.exp(-((((x / W) - this.cx) / this.wd) ** 2)); return H * (1 - (.2 + (.8 - this.top) * s)); },
+  pickX(l) {
+    let bx = 0, bv = 1e9;
+    for (let k = 0; k < 6; k++) { const x = R(.03, .97) * W, c = colOf(x); let v = rnd() * .3 - (H - this.m(x)) / H * .8 + (season.ok(x, l) ? 0 : 99); for (let i = Math.max(0, c - 3); i <= Math.min(GW - 1, c + 3); i++) v += l.occ[i]; if (v < bv) { bv = v; bx = x; } }
+    const c = colOf(bx); for (let i = Math.max(0, c - 2); i <= Math.min(GW - 1, c + 2); i++) l.occ[i] += 1; return bx;
+  },
+  // anywhere in the space: it rises (or hangs) out of a pocket of mist
+  mid() {
+    const l = pickL([.3, .36, .34]), pen = l.pen, u = pen.u, pal = palette(), c1 = pal[0], c2 = lite(two(pal), 10), x = season.pick(l), y = R(.12, .88) * H; if (x === null) return;
+    const down = y < .3 * H, h = R(.16, .36) * H * (l === LAYERS[0] ? .8 : 1), hh = down ? h : Math.min(h, y - .04 * H), q = rnd();
+    if (down || q < .5) coral(pen, x, y, hh, c1, c2, { fan: rnd() < .35, down, a0: (down ? PI / 2 : -PI / 2) + R(-.5, .5) }); else if (q < .78) cushion(pen, x, y, clamp(hh * .55, 60 * u, 170 * u), c1, c2); else bush(pen, x, y, clamp(hh * .6, 60 * u, 170 * u), pal.stem, c1);
+    fogRoot(l, x, y, clamp(hh * .4, 50 * u, 140 * u), hh, down ? -1 : 1);
+  },
+  // reaching in from the left or right edge
+  side() {
+    const l = pickL([.3, .36, .34]), pen = l.pen, u = pen.u, pal = palette(), c1 = pal[0], c2 = lite(two(pal), 10), left = rnd() < .5, x = left ? -.02 * W : 1.02 * W, y = R(.1, .94) * H; if (!season.ok(left ? .02 * W : .98 * W, l)) return;
+    const up = rnd() < .25; coral(pen, x, y, R(.3, .56) * H, c1, c2, { fan: rnd() < .35, a0: up ? (left ? -R(.6, 1) : PI + R(.6, 1)) : (left ? 0 : PI) + (left ? -1 : 1) * R(-.15, .6) });
+  },
+  // hanging down from above
+  fromTop() {
+    const l = pickL([.3, .36, .34]), pen = l.pen, pal = palette(), x = season.pick(l); if (x === null) return;
+    coral(pen, x, -.02 * H, R(.24, .46) * H, pal[0], lite(two(pal), 10), { fan: rnd() < .35, down: true, a0: PI / 2 + R(-.35, .35) });
+  },
+  seed(xq, yq) {
+    if (xq === undefined) { const q = rnd(); if (q < .55) { this.mid(); return; } if (q < .72) { this.side(); return; } if (q < .84) { this.fromTop(); return; } }      // most growth starts anywhere on the page; the ground is only for depth
+    const l = pickL([.26, .38, .36]), pen = l.pen, u = pen.u, x = xq !== undefined ? xq : this.pickX(l); if (xq === undefined && !season.ok(x, l)) return; const pal = palette(), q = rnd(), c1 = pal[0], c2 = lite(two(pal), 10), y = H * R(.97, 1.01), room = y - this.m(x);
+    const h = yq !== undefined ? clamp(y - yq, 90 * u, y - .04 * H) : room * R(.6, 1.05), self = this;
+    const epi = { p: .3, fn(t) { const p2 = palette(), r = R(50, 100) * u; if (rnd() < .6) cushion(t.pen, t.x, t.y, r, p2[0], lite(two(p2), 10)); else bush(t.pen, t.x, t.y, r, p2.stem, p2[0]); if (rnd() < .3) later(3, () => self.pins(t.x, t.y - r * .3, p2, t.pen)); } };
+    if (q < .3) { runner(pen, x, y, -PI / 2 + R(-1, 1)); return; }      // instead of a fat coral: a long runner that wanders off
+    else if (q < .72) coral(pen, x, y, h, c1, c2, { epi, fan: rnd() < .3 });
+    else if (q < .88) cushion(pen, x, y, clamp(h * .6, 110 * u, 260 * u), c1, c2);
+    else bush(pen, x, y, clamp(h * .6, 100 * u, 240 * u), pal.stem, c1);
+  },
+  pins(x, y, pal, pn) {
+    const pen = pn || orgPen(LAYERS[2].pen, x, y, 0), u = pen.u, n = RI(2, 5), fan = R(-.5, .5);
+    for (let i = 0; i < n; i++) { const bx = x + gauss() * 12 * u, h = R(70, 200) * u, r = R(2, 4.6) * u, c = pick(pal.pin);
+      const a = -PI / 2 + fan + gauss() * .9; stemTo(pen, bx, y, bx + Math.cos(a) * h, y + Math.sin(a) * h, { w: R(.9, 1.5) * u, c: jit(pal.stem, 6, 8), sp: 30, delay: i * R(.4, 1), head: (hx, hy) => bead(pen, hx, hy, r, c, 0) }); }
+  },
+  auto(dt) { this.t -= dt * (1 + eg * 2); if (this.t <= 0) { this.t = this.open > 0 ? (this.open--, .9) : season.gap(); season.n++; this.seed(); } },
+  at(x, y) { this.seed(x, y); },
+  G() { return H * .99; },
+  kind() { return rnd() < .5 ? 'pin' : .5; },
+};
+
+/* 3 · Vines: glossy tendrils braided along wind-bent spines, throwing side vines, leaves and flowers */
+function mkSpine(p) {
+  const s = { p, bw: R(.075, .115) * Math.min(W, H), len: 0 };
+  s.at = t => { const m = 1 - t, a = m * m * m, b = 3 * m * m * t, c = 3 * m * t * t, d = t * t * t, q = s.p;
+    const x = (a * q[0] + b * q[2] + c * q[4] + d * q[6]) * W, y = (a * q[1] + b * q[3] + c * q[5] + d * q[7]) * H;
+    const tx = (3 * m * m * (q[2] - q[0]) + 6 * m * t * (q[4] - q[2]) + 3 * t * t * (q[6] - q[4])) * W, ty = (3 * m * m * (q[3] - q[1]) + 6 * m * t * (q[5] - q[3]) + 3 * t * t * (q[7] - q[5])) * H, l = Math.hypot(tx, ty) || 1;
+    return [x, y, tx / l, ty / l]; };
+  let px, py; for (let i = 0; i <= 24; i++) { const [x, y] = s.at(i / 24); if (i) s.len += Math.hypot(x - px, y - py); px = x; py = y; }
+  return s;
+}
+function edgeSpine(kind) {
+  const q = kind === undefined ? rnd() : kind; let p;
+  if (q < .68) { const y = R(.08, .92), fl = q < .34, X = x => fl ? 1 - x : x; p = [X(-.08), y, X(R(.2, .4)), clamp(y + R(-.3, .3), .04, .96), X(R(.55, .8)), R(.08, .92), X(1.1), R(.05, .95)];
+    if (rnd() < .25) { const y1 = Math.max(.3, y); p = [X(-.08), y1, X(R(.25, .4)), y1 + R(-.05, .05), X(R(.4, .6)), y1 - R(.25, .45), X(R(.45, .8)), -.12]; } }      // from the side, then turning upward      // from the left or the right
+  else if (q < .86) { const x = R(.1, .9); p = [x, 1.1, clamp(x + R(-.25, .25), 0, 1), R(.6, .8), R(.1, .9), R(.3, .5), R(0, 1), -.1]; }                                                          // from below
+  else { const x = R(.1, .9); p = [x, -.1, clamp(x + R(-.2, .2), 0, 1), R(.2, .4), R(.1, .9), R(.5, .7), R(-.1, 1.1), R(.7, 1.1)]; }                                                              // from above
+  return mkSpine(p);
+}
+// a spine that starts in the middle of the space, out of a pocket of mist, and reaches out towards an edge
+function midSpine(x0, y0) {
+  x0 = x0 === undefined ? R(.25, .75) : x0; y0 = y0 === undefined ? R(.3, .78) : y0;
+  const a = R(TAU), ex = clamp(x0 + Math.cos(a) * 1.4, -.12, 1.12), ey = clamp(y0 + Math.sin(a) * 1.1, -.12, 1.12), bx = R(-.25, .25), by = R(-.25, .25);
+  const s = mkSpine([x0, y0, x0 + (ex - x0) * .3 + bx, y0 + (ey - y0) * .3 + by, x0 + (ex - x0) * .65 - bx, y0 + (ey - y0) * .65 - by, ex, ey]); s.mid = 1; s.bw *= .8; return s;
+}
+const vines = {
+  name: 'Vines', pal: 2, mist: .8, noSweep: true,
+  init() {
+    nodes.length = 0; this.t = .2; this.open = 12;
+    this.sp = [diagSpine(), edgeSpine(.1), edgeSpine(.5), midSpine(R(.3, .5)), edgeSpine(.75), edgeSpine(), midSpine(R(.5, .7)), diagSpine()]; this.sp[5].bw *= .7; this.open = 20;
+  },
+  launch(sp, quick) {
+    sp = sp || pick(this.sp);
+    const l = pickL([.22, .4, .34, .04]), pen0 = l.pen, u = pen0.u, pal = palette(), nm = l.name, c = jit(rnd() < .6 ? pal.stem : pal.moss[rnd() < .5 ? 0 : 1], 10, 7), w = (nm === 'front' ? R(9, 24) : nm === 'near' ? R(9, 14) : R(12, 30)) * u;
+    const bw = sp.bw * (nm === 'far' ? 1.5 : 1), oa = gauss() * .7, ob = R(.3, 1), of = R(1, 6), ph = R(TAU), ob2 = R(.1, .4), of2 = R(4, 11), ph2 = R(TAU), sEnd = R(.5, 1.04), peel = rnd() < .6 ? -1 : 1, pts = []; let len = 0;
+    for (let s = sp.mid ? 0 : -.02; s < sEnd + .16; s += 9 * u / sp.len) {
+      const [x0, y0, tx, ty] = sp.at(Math.min(1.1, s)); let off = (oa + ob * Math.sin(ph + s * of * TAU) + ob2 * Math.sin(ph2 + s * of2 * TAU)) * bw;      // two twists, so the strands of a bundle cross and wind round each other if (s > sEnd) { const k = (s - sEnd) / .16; off += peel * bw * 2.2 * k * k; }
+      pts.push([x0 - ty * off, y0 + tx * off]); const n = pts.length; if (n > 1) len += Math.hypot(pts[n - 1][0] - pts[n - 2][0], pts[n - 1][1] - pts[n - 2][1]);
+    }
+    const pen = orgPen(pen0, pts[0][0], pts[0][1], 1), tail = .16 / (sEnd + .18), branchy = nm === 'front' || nm === 'mid';
+    tip({ pen, x: pts[0][0], y: pts[0][1], a: 0, path: pts, len, w, wf: f => w * (.85 + .15 * Math.sin(ph * 2 + f * 9)) * (f < 1 - tail ? 1 : Math.max(.08, (1 - f) / tail)) * (sp.mid ? Math.min(1, .3 + f * 9) : 1), c, shade: 1, gl: 1, sp: quick ? 90 : R(36, 52), every: R(70, 140) * u,
+      branch(t, f) {
+        addNode(t, pen); if (!branchy) return;
+        const q = rnd(), side = rnd() < .65 ? -1 : 1;
+        if (q < .2) vine(pen, t.x, t.y, t.a + side * R(.5, 1.2), R(.25, .7) * Math.min(W, H), t.cw * R(.5, .75), jit(c, 8, 6), 0, pal);
+        else if (q < .44) leaf(pen, t.x, t.y, t.a + side * R(.6, 1.2), R(26, 56) * u, jit(c, 8, 6));
+        else if (q < .66) tendril(pen, t.x, t.y, t.a + side * R(.4, 1.3), R(50, 170) * u, Math.max(.9 * u, t.cw * .1), lite(jit(c, 8, 6), 6));
+        else if (q < .75) frond(pen, t.x, t.y, t.a + side * R(.5, 1.1), R(40, 100) * u, soft(curP().hues[curP().act[1]]));
+        else if (q < .78) umbel(pen, t.x, t.y, t.a + side * R(.3, .9), pal);
+      },
+      end(t) { if (branchy && rnd() < .25) vineFlower(pen, t.x, t.y, t.a, pal); } });
+    if (sp.mid) fogRoot(l, pts[0][0], pts[0][1], 40 * u, 90 * u, 0);
+  },
+  near(x, y) { let b = null, bd = (.3 * Math.min(W, H)) ** 2; for (const n of nodes) { const d = (n.x - x) ** 2 + (n.y - y) ** 2; if (d < bd) { bd = d; b = n; } } return b; },
+  auto(dt) { this.t -= dt * (1 + eg); if (this.t <= 0) { this.t = this.open > 0 ? (this.open--, .5) : season.gap() * .6; season.n++; if (rnd() < .3) { const k = this.sp.findIndex(q => q.mid); if (k >= 0) this.sp[k] = midSpine(); } if (rnd() < .12) this.sp[RI(0, this.sp.length - 1)] = rnd() < .5 ? diagSpine() : edgeSpine();
+    const sp = pick(this.sp), k = rnd() < .45 ? RI(2, 4) : 1; for (let i = 0; i < k; i++) later(i * R(.6, 2), () => this.launch(sp)); } },      // often several strands at once along one spine: a bundle
+  at(x, y) { const n = this.near(x, y); if (!n) { this.launch(null, true); return; } const pal = palette(); vine(orgLike(LAYERS[2].pen, n.pen), n.x, n.y, Math.atan2(y - n.y, x - n.x), Math.hypot(x - n.x, y - n.y) * 1.3 + 80 * U, R(5, 10) * U, jit(pal.stem, 10, 7), 1, pal); },
+  click(x, y, cnt) {
+    const n = this.near(x, y); if (!n) return false; const pen = orgLike(LAYERS[2].pen, n.pen), u = pen.u, pal = palette();
+    for (let i = 0; i < (cnt || 3); i++) { const r = R(16, 30) * u; stemTo(pen, n.x + gauss() * 6 * u, n.y + gauss() * 6 * u, x + gauss() * 50 * u, y + gauss() * 40 * u, { w: R(2, 3.4) * u, c: jit(pal.stem, 8, 6), sp: 230, delay: i * .12, leaf: R(26, 44) * u, head: (hx, hy, a) => flower(pen, hx, hy, r, pal, a, .3, true) }); }
+    return true;
+  },
+  G() { return H * 1.03; },
+  kind() { return .3; },
+};
+
+/* 4 · Mix: every kind of growth, rooted along a soft misty ground */
+const mix = {
+  name: 'Mix', pal: 3, mist: .8,
+  init() { this.seed = R(100); this.t = .3; this.open = 10; this.nearT = 14; nodes.length = 0; for (const l of LAYERS) l.occ.fill(0); },
+  G(li, x) { return H * [.995, .995, .99, 1.04][li]; },      // the foot of a plant just inside the frame, so its origin shows
+  pickX(l) {
+    let bx = 0, bv = 1e9;
+    for (let k = 0; k < 6; k++) { const x = R(.03, .97) * W, c = colOf(x); let v = rnd() * .3 + (season.ok(x, l) ? 0 : 99); for (let i = Math.max(0, c - 3); i <= Math.min(GW - 1, c + 3); i++) v += l.occ[i]; if (v < bv) { bv = v; bx = x; } }
+    const c = colOf(bx); for (let i = Math.max(0, c - 2); i <= Math.min(GW - 1, c + 2); i++) l.occ[i] += 1; return bx;
+  },
+  plant(l, x, reach, fastK = 1) {
+    const pen = l.pen, u = pen.u, pal = palette(), li = LAYERS.indexOf(l), gy = this.G(li, x) + 3 * u, maxH = gy - .04 * H, c1 = pal[0], c2 = lite(two(pal), 12);
+    const h = reach !== undefined ? clamp(gy - reach, 70 * u, maxH) : Math.min(maxH, R(.34, .74) * H * (li === 0 ? .95 : li === 1 ? .88 : 1));
+    let q = rnd(); if (reach !== undefined && h > 150 * u) q *= .72; else if (season.bias === 1) q *= .62; else if (season.bias === 2) q = .46 + q * .54;
+    const epi = { p: .5, fn: t => { addNode(t, t.pen); } };
+    if (q < .24) coral(pen, x, gy, h * .9, c1, c2, { epi });
+    else if (q < .38) coral(pen, x, gy, h, c1, c2, { fan: true, epi });
+    else if (q < .48) coral(pen, x, gy, h * .9, c1, c2, { fan: rnd() < .5, epi });
+    else if (q < .72) { const n = RI(1, 2), gp = orgPen(pen, x, gy, 0); for (let i = 0; i < n; i++) { const bx = x + gauss() * 8 * u, hh = h * R(.65, 1), r = clamp(hh * R(.12, .2), 16 * u, 84 * u);
+      stemTo(gp, bx, gy, bx + gauss() * hh * .4, gy - hh, { w: clamp(hh * .013, 1.8 * u, 4.6 * u), c: jit(pal.stem, 10, 6), tip: c1, sp: 28 * fastK, delay: i * R(1, 3), leaf: R(30, 60) * u, ls: 1.5, head: (hx, hy, a) => flower(pen, hx, hy, r, pal, a) }); } }
+    else if (q < .8) grassBush(l, x, gy + R(0, 10) * u, clamp(h / (260 * u), .8, 1.6));
+    else if (q < .9) bush(pen, x, gy, clamp(h * .6, 80 * u, 220 * u), pal.stem, c1);
+    else cushion(pen, x, gy, clamp(h * .5, 80 * u, 190 * u), c1, c2);
+  },
+  // from the side of the frame, curving inward and up
+  side(l) {
+    const pen = l.pen, u = pen.u, pal = palette(), left = rnd() < .5, x = left ? -.02 * W : 1.02 * W, y = R(.08, .95) * H, a = (left ? 0 : PI) + (left ? -1 : 1) * R(.1, .7), c1 = pal[0], c2 = lite(two(pal), 12);
+    const q = rnd(); if (rnd() < .25) { runner(pen, x, y, a, { up: true, len: R(.6, 1.2) * Math.max(W, H) }); return; }
+    if (q < .45) coral(pen, x, y, R(.3, .55) * H, c1, c2, { a0: a, fan: rnd() < .4 }); else if (q < .75) vine(pen, x, y, a, R(.4, .9) * W, R(7, 14) * u, jit(pal.stem, 10, 7), 0, pal); else vines.launch(edgeSpine(rnd() * .68));
+  },
+  // hanging down from above the frame
+  hang(l) {
+    const u = l.pen.u, pal = palette(), c = jit(pal.stem, 10, 7), x = R(.05, .95) * W, len = R(.2, .55) * H, q = rnd();
+    if (q < .35) { coral(l.pen, x, -.02 * H, R(.22, .42) * H, pal[0], lite(two(pal), 12), { down: true, a0: PI / 2 + R(-.35, .35), fan: rnd() < .5 }); return; }
+    if (q < .5) { vines.launch(edgeSpine(.9)); return; }
+    const pen = orgPen(l.pen, x, -.02 * H, 0);
+    tip({ pen, x, y: -.02 * H, a: PI / 2 + R(-.4, .4), len, w: R(5, 11) * u, tp: .85, c, shade: 1, sp: R(26, 40), wander: .06, trop: .004, tropA: PI / 2, every: R(50, 100) * u,
+      branch(t) { leaf(pen, t.x, t.y, t.a + (rnd() < .5 ? 1 : -1) * R(.6, 1.2), R(22, 46) * u, jit(c, 8, 6)); }, end(t) { if (rnd() < .7) flower(pen, t.x, t.y, R(18, 36) * u, pal, t.a); } });
+  },
+  // a patch of combed filament grass, as in Terrain, spreading from its middle
+  turf(l) {
+    const x0 = season.pick(l); if (x0 === null) return;
+    if (rnd() < .55) { const low = rnd() < .15, y = low ? H * R(.97, 1.02) : R(.3, .9) * H; grassBush(l, x0, y); if (!low) later(4, () => fogRoot(l, x0, y + 8 * l.pen.u, 50 * l.pen.u, 70 * l.pen.u)); return; } const u = l.pen.u, wd = R(.12, .3) * W, y0 = R(.18, .92) * H, seed = R(100), dep = R(50, 130) * u, amp = R(8, 26) * u, self = this;
+    const dome = x => dep * Math.max(0, 1 - ((x - x0) / (wd * .5)) ** 2), rd = { i: RI(0, 9), seed, f: .5, lean: R(-.3, .3), layer: l, y: x => y0 - dome(x) + amp * noise(x / W * 5 + seed, seed) * Math.min(1, dome(x) / (dep * .4)) };      // a hummock: domed on top, level underneath
+    rd.next = { y: x => y0 + 4 * u }; ridgeCols(rd); later(5, () => fogRoot(l, x0, y0 - dep * .1, wd * .28, dep * .7));
+    const dx = 1.3 * u, total = 2 * Math.ceil(wd * .5 / dx) + 1; let k = 0, acc = 0;
+    procs.push(dt => {
+      if (!live(self)) return false; acc += dt * Math.max(14, (total - k) * .5) * (1 + eg);
+      while (acc >= 1 && k < total) { acc--; const j = k++, x = x0 + ((j + 1) >> 1) * (j % 2 ? 1 : -1) * dx; if (!season.ok(x, l)) continue; if (rd.pv !== palVer) ridgeCols(rd); strand(rd, x); }
+      if (k >= total) return false;
+    });
+  },
+  // anywhere in the space: it rises (or hangs) out of a pocket of mist
+  mid() {
+    const l = pickL([.3, .36, .34]), pen = l.pen, u = pen.u, pal = palette(), c1 = pal[0], c2 = lite(two(pal), 12), x = season.pick(l), y = R(.15, .85) * H; if (x === null) return;
+    const down = y < .2 * H, h = R(.16, .36) * H * (l === LAYERS[0] ? .8 : 1), hh = down ? h : Math.min(h, y - .04 * H), q = rnd();
+    if (!down && q > .8 && q < .94) { vines.launch(midSpine(x / W, y / H)); return; }
+    if (down || q < .36) coral(pen, x, y, hh, c1, c2, { fan: rnd() < .45, down, a0: (down ? PI / 2 : -PI / 2) + R(-.5, .5) });
+    else if (q < .52) cushion(pen, x, y, clamp(hh * .5, 60 * u, 150 * u), c1, c2);
+    else if (q < .66) bush(pen, x, y, clamp(hh * .6, 60 * u, 170 * u), pal.stem, c1);
+    else if (q < .76) grass(pen, x, y, hh * .9, pal);
+    else { const n = RI(1, 3), gp = orgPen(pen, x, y, 0); for (let i = 0; i < n; i++) { const bx = x + gauss() * 14 * u, h2 = hh * R(.7, 1.1), r = clamp(h2 * R(.14, .22), 14 * u, 60 * u); stemTo(gp, bx, y, bx + gauss() * h2 * .4, y - h2, { w: clamp(h2 * .014, 1.6 * u, 3.6 * u), c: jit(pal.stem, 10, 6), tip: c1, sp: 26, delay: i * R(1, 2.5), leaf: R(26, 48) * u, ls: 1.3, head: (hx, hy, a) => flower(pen, hx, hy, r, pal, a) }); } }
+    fogRoot(l, x, y, clamp(hh * .4, 50 * u, 140 * u), hh, down ? -1 : 1);
+  },
+  // on something that already grew: the end of a branch or a vine
+  perch() {
+    const n = pick(nodes), pen = n.pen, u = pen.u, pal = palette(), q = rnd(), c1 = pal[0], c2 = lite(two(pal), 12);
+    if (q < .35) cushion(pen, n.x, n.y, R(40, 90) * u, c1, c2); else if (q < .6) bush(pen, n.x, n.y, R(40, 80) * u, pal.stem, c1);
+    else if (q < .8) flower(pen, n.x, n.y, R(16, 34) * u, pal, n.a, .5); else { const r = R(14, 30) * u; stemTo(pen, n.x, n.y, n.x + gauss() * 60 * u, n.y - R(50, 140) * u, { w: 1.8 * u, c: jit(pal.stem, 8, 6), sp: 26, leaf: R(24, 40) * u, head: (hx, hy, a) => flower(pen, hx, hy, r, pal, a) }); }
+  },
+  auto(dt) {
+    this.t -= dt * (1 + eg); if (this.t <= 0) {
+      this.t = this.open > 0 ? (this.open--, 1) : season.gap(); season.n++; const l = pickL([.25, .33, .42]), q = rnd(), below = () => { const x = this.pickX(l); if (season.ok(x, l)) this.plant(l, x); };
+      if (season.front) { if (q < .15) below(); else if (q < .85) this.mid(); else this.turf(l); }
+      else if (q < .07) below(); else if (q < .5) this.mid(); else if (q < .6) this.side(l); else if (q < .68) this.hang(l); else if (q < .78) this.turf(l); else if (q < .88) mycelium.spawn(); else if (nodes.length) this.perch(); else this.mid();
+    }
+    this.nearT -= dt; if (this.nearT <= 0) { this.nearT = R(60, 100); const pen = LAYERS[3].pen, pal = palette(), x = rnd() < .5 ? R(.02, .14) * W : R(.86, .98) * W, hh = R(.4, .7) * H, y0 = rnd() < .5 ? -.05 * H : H * 1.05, dy = y0 < 0 ? 1 : -1; stemTo(pen, x, y0, x + gauss() * hh * .3, y0 + dy * hh, { w: 3.6 * pen.u, c: pal.stem, sp: 30, leaf: 34 * pen.u, ls: 1.4 }); }
+  },
+  at(x, y) { const l = pickL([.2, .3, .5]); this.plant(l, x, y, 2.4); },
+  kind() { return undefined; },
+};
+
+
+/* ───────────── micro life: small growth that fills the space between the big organisms ─────────────
+   Everything still grows from an origin: on the ground, on something that already grew, or out of a small pocket of mist.
+   Kinds: wiry meadow stalks with small star flowers (the cornflowers in the wheat), sprigs with spore heads, tiny moss tufts,
+   and seedlings with two leaves. Spore heads that ripen now and then let go of a mote that drifts on the wind. */
+const MG = new Float32Array(16 * 9);
+const motes = [], emit = [];
+const micro = {
+  t: 0, open: 0,
+  reset() { this.t = 1.5; this.open = 26; MG.fill(0); motes.length = 0; dust.length = 0; emit.length = 0; perches.length = 0; },
+  // a free spot: of a few random places, take the one with the least micro life around it; the whole frame, centre included
+  spot() {
+    let bx = 0, by = 0, bv = 1e9;
+    for (let k = 0; k < 6; k++) { const x = R(.03, .97) * W, y = R(.06, .98) * H, i = clamp((x / W * 16) | 0, 0, 15) + clamp((y / H * 9) | 0, 0, 8) * 16, v = MG[i] + rnd() * .5; if (v < bv) { bv = v; bx = x; by = y; } }
+    MG[clamp((bx / W * 16) | 0, 0, 15) + clamp((by / H * 9) | 0, 0, 8) * 16] += 1; return [bx, by];
+  },
+  update(dt) {
+    for (let i = 0; i < MG.length; i++) MG[i] *= Math.exp(-dt / 240);
+    if (!style || style.rd || (style.cur || style).noMicro) return;
+    this.t -= dt * (1 + eg * .6) * (season.grow > .5 ? 1 : .35);
+    if (this.t > 0) return;
+    this.t = this.open > 0 ? (this.open--, .25) : R(.7, 1.6);
+    if (tips.length > MAXT * .72) return;
+    const l = pickL([.38, .4, .22, 0]); let [x, y] = this.spot();
+    if (!season.ok(x, l)) return;
+    const q = rnd(), pal = palette(), u = l.pen.u;
+    // where does it root? On something that already grew (a branch end, a stem, a vine), or on the ground low down.
+    // Only rarely in open space, and then its foot dissolves into the mist, without a visible fog patch.
+    let pen = l.pen, best = null, bd = (.16 * Math.min(W, H)) ** 2;
+    for (let k = 0; k < 40 && perches.length; k++) { const o = perches[(rnd() * perches.length) | 0], d = (o[0] - x) ** 2 + (o[1] - y) ** 2; if (d < bd) { bd = d; best = o; } }
+    if (!best && nodes.length) for (const o of nodes) { const d = (o.x - x) ** 2 + (o.y - y) ** 2; if (d < bd) { bd = d; best = [o.x, o.y, o.pen]; } }
+    if (best) { x = best[0]; y = best[1]; pen = orgLike(best[2].layer.pen, best[2]); }
+    else if (y > H * .8 || rnd() < .45) y = H * R(.95, .995);
+    else fogRoot(l, x, y, R(14, 26) * u, R(30, 60) * u, 0, true);
+    if (y > H * .9 && q < .5) this.meadow(pen, x, y, pal); else if (q < .3) this.meadow(pen, x, y, pal); else if (q < .6) this.sprig(pen, x, y, pal); else if (q < .82) this.moss(pen, x, y, pal); else this.seedling(pen, x, y, pal);
+  },
+  // wiry stalks from one root, leaning a little, each with a small star flower in the second colour
+  meadow(pen, x, y, pal) {
+    const u = pen.u, n = RI(4, 9), P = curP(), fc = soft(P.hues[P.act[1]]), st = pal.stem, h = R(40, 120) * u, lean = gauss() * .25;
+    for (let i = 0; i < n; i++) { const a = -PI / 2 + lean + gauss() * .32, c = jit(st, 8, 6), len = h * R(.6, 1.1), r = R(3.2, 6) * u;
+      tip({ pen, x: x + gauss() * 3 * u, y, a, len, w: R(.9, 1.3) * u, tp: .5, c, c2: lite(c, 10), sp: R(14, 22), wander: .04, turn: R(-.002, .002), delay: R(0, 3),
+        end: rnd() < .72 ? t => tiny(pen, t.x, t.y, r, jit(fc, 6, 5), [42, 90, 62]) : t => bead(pen, t.x, t.y, R(1.2, 2) * u, lite(c, 14), 6) }); }
+  },
+  // a short sprig that ends in spore heads; some ripen and release a mote
+  sprig(pen, x, y, pal) {
+    const u = pen.u, n = RI(2, 5), c = jit(rnd() < .5 ? pal.stem : pal.moss[0], 8, 6), sc = lite(pal[0], 8), h = R(18, 46) * u;
+    for (let i = 0; i < n; i++) tip({ pen, x, y, a: -PI / 2 + gauss() * .5, len: h * R(.6, 1.1), w: R(.8, 1.2) * u, tp: .4, c, c2: mixc(c, sc, .5), sp: R(10, 16), wander: .07, delay: R(0, 2.5),
+      end: t => { bead(pen, t.x, t.y, R(1.4, 2.6) * u, sc, 4); if (rnd() < .7) later(R(4, 12), () => { emit.push([t.x, t.y, sc, pen.layer]); if (emit.length > 160) emit.shift(); }); } });
+  },
+  // a tiny moss tuft: short soft filaments from one point, like a small cushion
+  moss(pen, x, y, pal) {
+    const u = pen.u, r = R(8, 20) * u, n = RI(14, 30), m = pal.moss[rnd() < .5 ? 0 : 1], c2 = lite(pal[0], 6);
+    for (let i = 0; i < n; i++) { const g = clamp(gauss() * 1.1, -1.4, 1.4), a = -PI / 2 + g, c = jit(m, 6, 5);
+      tip({ pen, x: x + gauss() * r * .12, y, a, len: r * R(.5, 1) * (.6 + .4 * Math.cos(g)), w: R(1, 1.6) * u, tp: .7, c: [c[0], c[1], c[2] - 10], c2: mixc(c, c2, .3), sp: R(8, 14), wander: .08, delay: Math.abs(g) * R(.5, 2) + R(0, 1),
+        end: rnd() < .12 ? t => bead(pen, t.x, t.y, R(.8, 1.3) * u, c2, 12) : null }); }
+  },
+  // a seedling: one curved stem, two leaves, a closed bud
+  seedling(pen, x, y, pal) {
+    const u = pen.u, h = R(20, 54) * u, c = jit(pal.stem, 8, 6), side = rnd() < .5 ? 1 : -1;
+    tip({ pen, x, y, a: -PI / 2 + gauss() * .2, len: h, w: R(1.2, 1.8) * u, tp: .45, c, c2: lite(c, 8), sp: R(9, 14), wander: .03, turn: side * R(.002, .006),
+      every: h * .45, branch(t) { leaf(pen, t.x, t.y, t.a + (rnd() < .5 ? 1 : -1) * R(.7, 1.1), R(6, 12) * u, lite(c, 4)); },
+      end: t => bead(pen, t.x, t.y, R(1.6, 2.6) * u, pal[0], 0) });
+  },
+};
+// dust: even finer specks, left where something moved; they hang in the air, drift a little on the wind and fade within seconds
+const dust = [];
+function addDust(x, y, c, tw, v) { if (GLX) { addP(x, y, v ? 2 : tw ? (rnd() < .4 ? 4 : 1) : 0, c); return; } if (dust.length < 900) dust.push({ x, y, vx: R(-3, 3) * U, vy: R(-4, 1) * U, c, t: 0, life: tw ? R(5, 12) : R(2.5, 7), r: R(.35, .75) * U * (tw ? R(.8, 1.5) : 1) * (v ? R(1.4, 2.6) : 1), ph: R(TAU), tw: tw ? R(2, 5) : 0, v }); }
+// fairy dust: fine glittering specks that hang around the plants all the time, more where something grows or flowers
+function fairy(dt) {
+  const n = dt * 22 * (1 + eg); for (let i = 0; i < n || rnd() < n - i; i++) {
+    const q = rnd(), pal = palette(); let x, y, c = rnd() < .5 ? pal[0] : two(pal);
+    if (q < .45 && nodes.length) { const nd = pick(nodes); x = nd.x + gauss() * 40 * U; y = nd.y + gauss() * 40 * U; }
+    else if (q < .7 && emit.length) { const e = pick(emit); x = e[0] + gauss() * 30 * U; y = e[1] + gauss() * 30 * U; c = e[2]; }
+    else if (q < .85 && tips.length) { const t = tips[(rnd() * tips.length) | 0]; x = t.x + gauss() * 14 * U; y = t.y + gauss() * 14 * U; }
+    else { x = R(0, W); y = R(0, H); }
+    addDust(x, y, c, 1); if (i > 40) break;
+  }
+}
+function runDust(dt) {
+  for (let i = dust.length - 1; i >= 0; i--) {
+    const m = dust[i]; m.t += dt; if (m.t > m.life) { dust[i] = dust[dust.length - 1]; dust.pop(); continue; }
+    const ci = clamp((m.x / W * GW) | 0, 0, GW - 1), cj = clamp((m.y / H * GH) | 0, 0, GH - 1), w = cj * GW + ci;
+    m.vx += ((WX[w] * 30 + Math.sin(time * .7 + m.ph) * 2) * U - m.vx) * Math.min(1, dt * .6); m.vy += ((WY[w] * 20 - 2.5 + Math.cos(time * .5 + m.ph) * 1.5) * U - m.vy) * Math.min(1, dt * .6);
+    m.x += m.vx * dt; m.y += m.vy * dt;
+    const a = Math.min(1, m.t / .8, (m.life - m.t) / 2) * (m.tw ? .55 * Math.max(0, Math.sin(m.t * m.tw + m.ph)) ** 2 : .5);      // fairy dust twinkles
+    fx.fillStyle = m.v ? `hsla(${m.c[0] | 0},${m.c[1] | 0}%,${Math.min(90, m.c[2] + 6) | 0}%,${Math.min(1, a * 1.6).toFixed(3)})` : `hsla(${m.c[0] | 0},${(m.c[1] * .4) | 0}%,${Math.min(96, m.c[2] + 32) | 0}%,${a.toFixed(3)})`; fx.beginPath(); fx.arc(m.x, m.y, m.r, 0, TAU); fx.fill();
+  }
+}
+function addMote(x, y, c, l) { if (GLX) { addP(x, y, 2, c, R(8, 16)); return; } if (motes.length < 260) motes.push({ x, y, vx: 0, vy: 0, c, t: 0, life: R(8, 16), r: R(.9, 1.7) * U * (l === LAYERS[0] ? .8 : 1), ph: R(TAU) }); }
+// motes: drifting very slowly on the wind, fading in and out; drawn on the light overlay, never painted into the garden
+function runMotes(dt) {
+  if (emit.length && motes.length < 170 && rnd() < dt * 5) { const e = pick(emit); addMote(e[0], e[1], e[2], e[3]); }
+  for (let i = motes.length - 1; i >= 0; i--) {
+    const m = motes[i]; m.t += dt; if (m.t > m.life || m.y < -10) { motes[i] = motes[motes.length - 1]; motes.pop(); continue; }
+    const ci = clamp((m.x / W * GW) | 0, 0, GW - 1), cj = clamp((m.y / H * GH) | 0, 0, GH - 1), w = cj * GW + ci;
+    m.vx += ((WX[w] * 60 + Math.sin(time * .5 + m.ph) * 4) * U - m.vx) * Math.min(1, dt * .8); m.vy += ((WY[w] * 40 - 7) * U - m.vy) * Math.min(1, dt * .8);
+    m.x += m.vx * dt; m.y += m.vy * dt;
+    const a = Math.min(1, m.t / 2, (m.life - m.t) / 3) * .55;
+    fx.fillStyle = `hsla(${m.c[0] | 0},${(m.c[1] * .6) | 0}%,${Math.min(94, m.c[2] + 22) | 0}%,${(a * .25).toFixed(3)})`; fx.beginPath(); fx.arc(m.x, m.y, m.r * 2.6, 0, TAU); fx.fill();
+    fx.fillStyle = `hsla(${m.c[0] | 0},${(m.c[1] * .5) | 0}%,${Math.min(96, m.c[2] + 30) | 0}%,${a.toFixed(3)})`; fx.beginPath(); fx.arc(m.x, m.y, m.r, 0, TAU); fx.fill();
+  }
+}
+
+/* 5 · Bloom: a soft mound of felted clusters, lumpy blossom spikes and wiry pins, rising on a slant and bursting with spores */
+// a felted puff: short fibres all over a disc, pointing outward, grown from the middle out; lighter on the side the light comes from
+function fuzz(pen, x, y, r, c1, c2) {
+  const u = pen.u, n = clamp(Math.round(r / u * 4.6), 60, 340);
+  for (let i = 0; i < n; i++) {
+    const q = Math.sqrt(rnd()), a = R(TAU), sx = x + Math.cos(a) * q * r * .78, sy = y + Math.sin(a) * q * r * .7, c = jit(c1, 6, 5), sh = Math.cos(a - LA) * q;
+    tip({ pen, x: sx, y: sy, a: a + gauss() * .6, len: r * R(.2, .42) * (1.1 - q * .3), w: R(2, 3.4) * u, tp: .5, c: [c[0], c[1], c[2] - 10], c2: mixc(c, c2, .35), dl: sh * 12 - (1 - q) * 5, sp: R(8, 14), wander: .16, delay: q * R(1.5, 3.5) + R(0, .6),
+      end: rnd() < .04 ? t => dot(pen, t.x, t.y, R(.6, 1.1) * u, lite(c2, 12), 16) : null });
+  }
+}
+// a cluster of puffs, one after the other, each a little off the last: a lumpy cloud
+function puff(pen, x, y, r, c1, c2) { const n = RI(3, 5); let px = x, py = y; for (let i = 0; i < n; i++) { const qx = px, qy = py, rr = r * R(.6, 1); later(i * R(1.5, 3), () => fuzz(pen, qx, qy, rr, c1, c2)); const a = R(TAU); px += Math.cos(a) * r * .7; py += Math.sin(a) * r * .5 - r * .2; } }
+// a blossom spike: a stem studded with rounded lumps, smaller towards the tip
+function spike(pen, x, y, a, h, c, stem) {
+  const u = pen.u;
+  tip({ pen, x, y, a, len: h, w: 2 * u, tp: .5, c: stem, c2: lite(stem, 8), sp: R(16, 24), wander: .05, trop: .006, tropA: -PI / 2, every: R(6, 9) * u,
+    branch(t, f) { const k = RI(1, 3), rr = R(3.5, 7) * u * (1 - f * .55); for (let i = 0; i < k; i++) { const b = t.a + (rnd() < .5 ? 1 : -1) * R(.8, 1.8), d = rr * R(.6, 1.3); bead(pen, t.x + Math.cos(b) * d, t.y + Math.sin(b) * d, rr * R(.7, 1.1), jit(c, 6, 6), 2); } } });
+}
+// wiry pins with round heads, fanning out; ripe heads shed spores
+function pinset(pen, x, y, pal, heads) {
+  const u = pen.u, n = RI(4, 9), fan = gauss() * .4;
+  for (let i = 0; i < n; i++) { const a = -PI / 2 + fan + gauss() * .7, c = pick(pal.pin), r = R(1.8, 4.2) * u, s = rnd() < .5 ? 1 : -1;
+    tip({ pen, x: x + gauss() * 6 * u, y: y + gauss() * 4 * u, a, len: R(50, 230) * u, w: R(.8, 1.2) * u, tp: .3, c: pal.stem, c2: lite(pal.stem, 10), sp: R(24, 40), wander: .04, turn: s * R(0, .004), delay: R(0, 3),
+      end: t => { bead(pen, t.x, t.y, r, c, 0); heads.push([t.x, t.y, c]); if (heads.length > 120) heads.shift(); } }); }
+}
+const bloom = {
+  name: 'Bloom', pal: 1, mist: .7,
+  noMicro: 1,
+  init() { this.t = .3; this.open = 40; this.m = []; this.heads = []; this.newMound(true); this.newMound(); for (const l of LAYERS) l.occ.fill(0); },
+  // a mound: a foot on the ground (or, now and then, hanging from above), a slant, a height. It builds up from its foot.
+  newMound(first) {
+    const qq = rnd(), top = !first && qq < .2, mid = qq >= .2 && qq < .72, x = (first ? R(.3, .7) : pick([R(.03, .3), R(.7, .97), R(.35, .65)])) * W;
+    this.m.push({ x, y: top ? -.03 * H : mid ? R(.25, .8) * H : H * 1.03, a: mid ? R(TAU) : (top ? PI / 2 : -PI / 2) + R(-.45, .45), h: R(.55, 1.05) * H * (top ? .6 : mid ? .4 : 1), w: R(.2, .34) * W, p: 0, l: first ? LAYERS[2] : pickL([.25, .45, .3]) });
+    if (this.m.length > 4) this.m.shift();
+  },
+  grow(m) {
+    const s = clamp(m.p * R(.25, 1.08), 0, 1), cx = m.x + Math.cos(m.a) * m.h * s, cy = m.y + Math.sin(m.a) * m.h * s, wd = m.w * (1 - s * .6), x = cx + gauss() * wd * .4, y = cy + gauss() * wd * .16, l = m.l;
+    if (!season.ok(x, l)) return; m.p = Math.min(1, m.p + .022);
+    const pen = l.pen, u = pen.u, P = curP(), pal = palette(), q = rnd(), c1 = soft(rnd() < .55 ? P.hues[P.act[0]] : pick(P.hues)), c2 = lite(c1, 12), r = R(40, 85) * u * (1.2 - s * .45);
+    if (q < .55) puff(pen, x, y, r, c1, c2);
+    else if (q < .72) { const n = RI(1, 3); for (let i = 0; i < n; i++) spike(pen, x + gauss() * 12 * u, y, m.a + gauss() * .5, R(90, 220) * u * (1.1 - s * .4), c1, pal.stem); }
+    else if (q < .92) pinset(pen, x, y, pal, this.heads);
+    else cushion(pen, x, y, r * 1.2, c1, c2);
+  },
+  // elsewhere in the frame: a small cluster from the side or out of the mist, so there are origins everywhere
+  loose() {
+    const l = pickL([.3, .4, .3]), pen = l.pen, u = pen.u, P = curP(), pal = palette(), c1 = soft(pick(P.hues)), left = rnd() < .5, q = rnd();
+    if (q < .4) { const x = left ? -.02 * W : 1.02 * W, y = R(.15, .85) * H; for (let i = 0; i < 3; i++) spike(pen, x, y + gauss() * 20 * u, (left ? 0 : PI) + (left ? -1 : 1) * R(.3, 1), R(120, 260) * u, c1, pal.stem); return; }
+    const x = season.pick(l), y = R(.12, .8) * H; if (x === null) return; fogRoot(l, x, y, 40 * u, 60 * u, 0, true);
+    if (q < .7) pinset(pen, x, y, pal, this.heads); else puff(pen, x, y, R(24, 44) * u, c1, lite(c1, 12));
+  },
+  auto(dt) {
+    this.t -= dt * (1 + eg); if (this.t <= 0) {
+      this.t = this.open > 0 ? (this.open--, .35) : Math.min(1.2, season.gap() * .3); season.n++;
+      const last = this.m[this.m.length - 1]; if (last.p >= 1 || rnd() < .03) this.newMound();
+      if (rnd() < .2) this.loose(); else this.grow(rnd() < .7 ? this.m[this.m.length - 1] : pick(this.m));
+    }
+    // spores: ripe heads burst now and then into bright specks that drift off
+    if (this.heads.length && rnd() < dt * 3) { const h = pick(this.heads), n = RI(3, 9); for (let i = 0; i < n; i++) addDust(h[0] + gauss() * 10 * U, h[1] + gauss() * 10 * U, h[2], 1, 1); if (rnd() < .3) addMote(h[0], h[1], h[2]); }
+  },
+  click(x, y) { const l = LAYERS[2], u = l.pen.u, P = curP(), c1 = soft(pick(P.hues)); puff(l.pen, x, y, R(30, 55) * u, c1, lite(c1, 12)); pinset(l.pen, x, y, palette(), this.heads); return true; },
+  at(x, y) { const pal = palette(), l = LAYERS[2]; pinset(orgPen(l.pen, x, y, 0), x, y + 10 * U, pal, this.heads); for (let i = 0; i < 12; i++) addDust(x + gauss() * 30 * U, y + gauss() * 30 * U, pick(pal.pin), 1, 1); },
+  G() { return H * 1.02; },
+  kind() { return 'pin'; },
+};
+
+/* 6 · Mycelium: luminous threads in the dark. Spores land anywhere, send out threads in several directions,
+   and the threads keep branching and wandering until they web the whole frame; glowing knots where they fork */
+function thread(pen, x, y, a, len, w, c, depth) {
+  const u = pen.u, seed = R(100), sc = R(80, 220) * u;
+  tip({ pen, x, y, a, len, w, tp: .55, c, c2: lite(c, 14), sp: R(24, 40), wander: .05, every: R(28, 70) * u * (1 + depth * .35),
+    steer(t, k) { t.a += noise(t.d / sc + seed, seed * .6) * .014 * k; if (t.x < -.06 * W || t.x > 1.06 * W || t.y < -.06 * H || t.y > 1.06 * H) t.a += angDiff(Math.atan2(H * .5 - t.y, W * .5 - t.x), t.a) * .03 * k; },
+    branch(t, f) {
+      addNode(t, pen); const q = rnd();
+      if (depth < 3 && q < .38) thread(pen, t.x, t.y, t.a + (rnd() < .5 ? 1 : -1) * R(.3, .9), len * R(.3, .65) * (1 - f * .3), Math.max(.6 * u, t.cw * .78), jit(c, 6, 6), depth + 1);
+      else if (q < .62) bead(pen, t.x, t.y, R(1.4, 2.8) * u, lite(c, 12), 10);
+    },
+    end(t) { if (rnd() < .45) { const pc = pick(palette().pin); bead(pen, t.x, t.y, R(2, 4) * u, pc, 6); later(R(2, 8), () => { emit.push([t.x, t.y, pc, pen.layer]); if (emit.length > 160) emit.shift(); }); } } });
+}
+const mycelium = {
+  name: 'Mycelium', pal: 6, mist: .55, noMicro: 1, noRun: 1,
+  click(x, y) { this.spawn(x, y); return true; },
+  init() { this.t = .2; this.open = 6; nodes.length = 0; },
+  spawn(x, y) {
+    const l = pickL([.3, .4, .3]), pen = l.pen, u = pen.u, P = curP(), c = soft(P.hues[P.act[rnd() < .7 ? 0 : 1]]), q = x === undefined ? rnd() : 1;
+    let a, n = 1;
+    if (q < .3) { const e = RI(0, 3); x = e === 0 ? -.02 * W : e === 1 ? 1.02 * W : R(.05, .95) * W; y = e === 2 ? -.02 * H : e === 3 ? 1.02 * H : R(.05, .95) * H; a = Math.atan2(H * R(.3, .7) - y, W * R(.3, .7) - x) + R(-.6, .6); }
+    else if (q < .5 && nodes.length) { const nd = pick(nodes); x = nd.x; y = nd.y; a = nd.a + (rnd() < .5 ? 1 : -1) * R(.5, 1.4); }
+    else { if (x === undefined) { x = season.pick(l); y = R(.06, .94) * H; } if (x === null) return; a = R(TAU); n = RI(2, 4); bead(pen, x, y, R(2.5, 4.5) * u, lite(c, 16), 12); fogRoot(l, x, y, 20 * u, 30 * u, 0, true); }      // a spore: threads in every direction
+    if (!season.ok(x, l)) return;
+    for (let i = 0; i < n; i++) thread(pen, x, y, a + i * TAU / n + R(-.3, .3), R(.3, .75) * Math.max(W, H), R(1.1, 1.9) * u, jit(c, 6, 6), 0);
+  },
+  auto(dt) { this.t -= dt * (1 + eg); if (this.t <= 0) { this.t = this.open > 0 ? (this.open--, 1.2) : season.gap() * 1.1; season.n++; this.spawn(); } },
+  at(x, y) { this.spawn(x, y); },
+  G() { return H * 1.02; },
+  kind() { return 'pin'; },
+};
+
+/* 7 · Anemones: radial creatures of every size, from tiny polyps to giants that reach past the frame,
+   their arms all curling the same way so each one swirls; some trail long threads */
+function anemone(pen, x, y, r, c1, c2, o = {}) {
+  const u = pen.u, sw = (rnd() < .5 ? 1 : -1) * R(.6, 1.5), n = clamp(Math.round(r / u * 1.1), 28, 230), a0 = R(TAU), wd = clamp(r * .02, 1.1 * u, 3.4 * u);
+  bead(pen, x, y, clamp(r * .07, 2 * u, 12 * u), [c1[0], c1[1] * .8, Math.max(20, c1[2] - 26)], -4);      // the mouth: where it starts
+  const ring = (m, rr, ca, cb, dly, w0) => { for (let i = 0; i < m; i++) {
+    const a = o.dome ? -PI / 2 + (i / m - .5) * R(2.6, 3.3) : a0 + i / m * TAU + R(-.06, .06), ln = rr * R(.6, 1) * (o.dome ? .6 + .4 * Math.cos(a + PI / 2) : 1), c = jit(ca, 6, 5), cv = sw * .004 * (120 * u / rr);
+    tip({ pen, x: x + Math.cos(a) * rr * .06, y: y + Math.sin(a) * rr * .06, a, len: ln, w: w0 * R(.8, 1.2), tp: .8, c: [c[0], c[1], c[2] - 14], c2: mixc(c, cb, .6), cp: 1.4, dl: Math.cos(a - LA) * 8, sp: R(16, 26) * clamp(rr / (120 * u), .8, 2.4), wander: .03,
+      steer(t, k) { t.a += cv * (.4 + t.d / t.len) * k; }, delay: dly + R(0, 1.5), end: rnd() < .35 ? e => bead(pen, e.x, e.y, R(1.2, 2.6) * u, lite(cb, 8), 6) : null }); } };
+  ring(n, r, c1, c2, 0, wd); ring(Math.round(n * .45), r * .45, c2, lite(c1, 10), 2.5, wd * .8);
+  if (o.tent) for (let i = 0; i < RI(3, 6); i++) { const s = rnd() < .5 ? 1 : -1, sc = R(60, 140) * u, sd = R(100);
+    tip({ pen, x, y, a: PI / 2 + gauss() * .6, len: r * R(1.5, 3), w: R(.8, 1.3) * u, tp: .4, c: lite(c1, 6), c2: lite(c2, 14), sp: R(18, 30), wander: .03, delay: R(2, 6), steer(t, k) { t.a += noise(t.d / sc + sd, sd) * .03 * k + s * .001 * k; } }); }
+}
+const anemones = {
+  name: 'Anemones', pal: 7, mist: .7,
+  click(x, y) { this.spawn(x, y); return true; },
+  init() { this.t = .2; this.open = 9; for (const l of LAYERS) l.occ.fill(0); },
+  spawn(xq, yq) {
+    const q = xq !== undefined ? .6 : rnd(), l = q < .14 ? LAYERS[rnd() < .5 ? 0 : 1] : pickL([.3, .4, .3]), pen = l.pen, u = pen.u, P = curP(), c1 = soft(P.hues[P.act[rnd() < .7 ? 0 : 1]]), c2 = rnd() < .75 ? soft(P.hues[P.act[c1 === P.hues[P.act[0]] ? 1 : 0]]) : lite(c1, 14);
+    let x, y, r, dome = false, free = true;
+    if (q < .14) { r = R(.28, .55) * H; x = pick([R(-.12, .18), R(.82, 1.12), R(.35, .65)]) * W; y = R(.1, .9) * H; }      // a giant, often reaching past the frame
+    else if (q < .5) { x = season.pick(l); y = R(.12, .88) * H; r = R(70, 160) * u; }
+    else if (q < .72 && nodes.length && xq === undefined) { const nd = pick(nodes); x = nd.x; y = nd.y; r = R(18, 42) * u; free = false; }      // a polyp on something that grew
+    else if (xq !== undefined) { x = xq; y = yq; r = R(30, 70) * u; }
+    else if (rnd() < .6) { x = season.pick(l); y = R(.1, .9) * H; r = R(50, 120) * u; } else { x = season.pick(l); y = H * R(.96, 1.02); r = R(50, 120) * u; dome = true; free = false; }      // on the ground: a half crown
+    if (x === null || !season.ok(x, l)) return;
+    anemone(pen, x, y, r, c1, c2, { dome, tent: !dome && r > 60 * u && rnd() < .35 }); if (free) fogRoot(l, x, y, r * .25, r * .35, 0, true);
+    if (r > 50 * u) { const t = { x, y, a: R(TAU) }; addNode(t, pen); }
+  },
+  auto(dt) { this.t -= dt * (1 + eg); if (this.t <= 0) { this.t = this.open > 0 ? (this.open--, 1.1) : season.gap() * .85; season.n++; this.spawn(); } },
+  at(x, y) { this.spawn(x, y); },
+  G() { return H * 1.02; },
+  kind() { return .7; },
+};
+
+/* Mix 2: Mound, Bloom and Anemones in one garden. Each keeps its own rhythm at a slower pace, so together they grow about as densely
+   as one did alone, and the mix of corals, cushions, puffs, spikes, pin sets, anemones and runners is much wider */
+const mix2 = {
+  name: 'Menagerie', pal: 1, mist: .75,
+  parts: [[mound, .42], [bloom, .38], [anemones, .4]],
+  init(soft) { for (const [s] of this.parts) s.init(soft); mound.open = 5; bloom.open = 14; anemones.open = 4; },
+  auto(dt) { for (const [s, k] of this.parts) s.auto(dt * k); },
+  click(x, y) { const q = rnd(); return q < .4 ? bloom.click(x, y) : q < .75 ? anemones.click(x, y) : (mound.at(x, y), true); },
+  at(x, y) { pick(this.parts)[0].at(x, y); },
+  G() { return H * 1.01; },
+  kind() { const q = rnd(); return q < .35 ? 'pin' : q < .7 ? .5 : .7; },
+};
+
+/* 8 · Seasons: the garden moves through the other styles. Every few minutes a new one slowly grows in among the old,
+   which thins out in the mist; now and then a guest from another style takes root as well */
+const live = s => style === s || style === seasons || Object.getPrototypeOf(style) === s;
+const TRANS = 70;                 // seconds over which one style grows into the next
+const seasons = {
+  name: 'Seasons', pal: 3, mist: .8, noSweep: true, lockPal: false, list: [terrain, vines, mix, mix2, mycelium],
+  init() { this.prev = null; this.k = 1; this.cur = pick(this.list); this.enter(true); this.t = R(110, 160); this.gt = R(25, 45); },
+  enter(first) {
+    const s = this.cur; s.init(!first); if (!first && s.open !== undefined) s.open = 3;
+    if (!this.lockPal && !drift) { pIdx = s.pal; palVer++; rollAct(curP(), PREF[pIdx]); bgSlow = !first; mark(); }
+  },
+  turn() { this.prev = this.cur; this.cur = pick(this.list.filter(s => s !== this.prev)); this.k = 0; this.enter(false); },
+  // called instead of the usual long cycle: old growth thins out faster while a new style grows in
+  cycle(dt) {
+    season.grow = 1; season.fade = this.k < 1 ? (this.prev === terrain ? 2 : 1.1) : .3;      // grass is dense, so it needs a stronger mist to clear
+    if (this.k < 1) { this.k = Math.min(1, this.k + dt / TRANS); if (this.k >= 1) this.prev = null; }
+    else if ((this.t -= dt) <= 0) { this.turn(); this.t = R(110, 160); }
+  },
+  auto(dt) {
+    const p = this.prev, k = this.k;
+    terrain.cap = this.cur === terrain ? (p ? k : 1) : p === terrain ? 1 - k : 1;
+    if (p && rnd() < 1 - k) p.auto(dt);
+    if (!p || rnd() < k) this.cur.auto(dt);
+    if ((this.gt -= dt) <= 0) {
+      this.gt = R(25, 50); const g = pick(this.list.filter(s => s !== this.cur));
+      if (g === terrain) mix.turf(pickL([.3, .36, .34])); else if (g === mound) mound.mid(); else if (g === vines) vines.launch(midSpine()); else if (g === bloom) bloom.loose(); else if (g === mycelium) mycelium.spawn(); else if (g === mix2) { const q = rnd(); if (q < .33) mound.mid(); else if (q < .66) bloom.loose(); else anemones.spawn(); } else mix.mid();
+    }
+  },
+  at(x, y) { this.cur.at(x, y); },
+  click(x, y, cnt) { return this.cur.click ? this.cur.click(x, y, cnt) : false; },
+  G(li, x) { return this.cur.G(li, x); },
+  kind() { return this.cur.kind(); },
+};
+
+const STYLES = [terrain, vines, mix, mix2, mycelium, seasons];
+let style = terrain, sIdx = 0, bgSlow = false;
+
+// click: a handful of sprouts reaching for the pointer, always rooted in something
+function sprouts(x, y, cnt) {
+  if (style.click && style.click(x, y, cnt)) return;
+  const pen0 = LAYERS[2].pen, u = pen0.u, pal = palette(), n = cnt || RI(3, 5), pen = pen0, a0 = R(TAU);
+  fogRoot(LAYERS[2], x, y, 26 * u, 34 * u, 0, true);
+  for (let i = 0; i < n; i++) {
+    const bx = x + gauss() * 10 * u, by = y + gauss() * 10 * u, aa = a0 + i * TAU / n + gauss() * .5 - (Math.sin(a0 + i * TAU / n) > 0 ? .6 : 0), ln = R(60, 160) * u, tx = bx + Math.cos(aa) * ln, ty = by + Math.sin(aa) * ln;
+    const r = R(10, 22) * u, k = style.kind(), pc = pick(pal.pin);
+    stemTo(pen, bx, by, tx, ty, { w: R(1.4, 2.6) * u, c: jit(pal.stem, 8, 6), tip: pal[0], sp: 240, delay: i * .12, leaf: rnd() < .5 ? R(22, 40) * u : 0,
+      head: (hx, hy, a) => { if (k === 'pin') bead(pen, hx, hy, R(2.4, 5) * u, pc, 0); else flower(pen, hx, hy, r, pal, a, k, true); } });
+  }
+}
+
+/* ───────────── living flowers: they grow, unfold, open, sway, wilt, shed their petals and die back ─────────────
+   Unlike the rest of the garden these are not painted once: they are drawn fresh every frame on their own layer,
+   so they can keep moving through their whole life. Motions: fiddlehead unroll, leaf book-fold, daisy ray wave,
+   lily swell and reflex, poppy crumple, rose whorl peel, petal shatter */
+const liveCv = document.createElement('canvas'), lx = liveCv.getContext('2d');
+const ease = t => t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t);
+const ph01 = (t, a, b) => ease((t - a) / (b - a));
+const hs = (c, a = 1, dl = 0, ds = 0) => `hsla(${c[0] | 0},${clamp(c[1] + ds, 0, 100) | 0}%,${clamp(c[2] + dl, 3, 97) | 0}%,${a.toFixed(3)})`;
+function hsl2rgb(c) { const h = c[0] / 360, s = c[1] / 100, l = c[2] / 100, k = n => (n + h * 12) % 12, a = s * Math.min(l, 1 - l); const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1)); return [f(0), f(8), f(4)]; }
+const DRY = [34, 38, 52];
+const GRAIN = (() => { const c = document.createElement('canvas'); c.width = c.height = 96; const g = c.getContext('2d'), d = g.createImageData(96, 96); for (let i = 0; i < d.data.length; i += 4) { const v = rnd() < .5 ? 0 : 255; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = rnd() * 120; } g.putImageData(d, 0, 0); return lx.createPattern(c, 'repeat'); })();
+const life = {
+  list: [], petals: [], t: 2, arr: null, order: 0, tidy: 0, phase: 0, plan: null, pt: 0,
+  reset() { this.list.length = 0; this.petals.length = 0; this.t = 1.5; for (let i = 0; i < 4; i++) this.spawn(R(.15, .7)); },
+  target() { const s = style === seasons ? seasons.cur : style; return s === mycelium ? 5 : s === mix2 ? 16 : s === terrain ? 13 : 15; },
+  spawn(age, spec, slot) {
+    const P = curP(), pal = palette(), q = spec ? .5 : rnd(), z = spec ? spec.s * .9 : R(.7, 1.5); let x, y, a;
+    if (q < .14) { x = R(.04, .96) * W; y = H * R(.97, 1.04); a = -PI / 2 + R(-.35, .35); }                                   // from the ground
+    else if (q < .7) { x = R(.08, .92) * W; y = R(.15, .85) * H; a = -PI / 2 + R(-1.6, 1.6); }                                     // out of the mist, mid-air
+    else if (q < .88) { const l = rnd() < .5; x = l ? -.02 * W : 1.02 * W; y = R(.2, .9) * H; a = l ? -R(.25, .9) : PI + R(.25, .9); }    // from the sides, bending up
+    else { x = R(.08, .92) * W; y = -.03 * H; a = PI / 2 + R(-.3, .3); }                                                     // hanging from above
+    if (spec) { x = spec.x; y = spec.y; a = -PI / 2; }
+    const types = ['daisy', 'lily', 'poppy', 'rose', 'fern', 'daisy', 'fern', 'cup', 'tendril', 'tendril'], type = spec ? spec.kind : pick(types), hang = !spec && a > 0;
+    const c1 = spec ? spec.c1 : soft(P.hues[P.act[rnd() < .65 ? 0 : 1]]), c2 = spec ? spec.c2 : rnd() < .5 ? lite(c1, 14) : soft(pick(P.hues)), len = spec ? spec.H * spec.h * spec.s * (type === 'fern' ? .55 : 1) : (type === 'fern' ? R(.2, .42) : R(.14, .36)) * H * z;
+    const T = { g: R(14, 24), o: R(7, 12), h: R(28, 60), w: R(12, 20), s: R(5, 9), f: 7 }; let acc = 0; for (const k of ['g', 'o', 'h', 'w', 's', 'f']) { acc += T[k]; T[k + 'e'] = acc; }
+    const leaves = []; const nl = type === 'fern' ? 0 : RI(1, 4); for (let i = 0; i < nl; i++) leaves.push({ s: R(.15, .7), side: i % 2 ? 1 : -1, L: R(22, 46) * U * z, Wd: R(.28, .42), ang: R(.5, 1.05), d: R(0, 2) });
+    const n = type === 'tendril' ? RI(9, 13) : type === 'daisy' ? RI(13, 21) : type === 'lily' ? 6 : type === 'poppy' ? RI(4, 5) : type === 'rose' ? 15 : type === 'cup' ? 5 : 0;
+    const b = { x, y, a, z, type, hang, len, T, t: (age || 0) * T.fe, leaves, n, c1, c2, cd: jit(P.stem, 6, 4), stem: P.stem, pin: pick(P.pin || [c2]), k: R(-1.8, 1.8) / len, ph: R(TAU), seed: R(100),
+      r: (type === 'tendril' ? R(9, 14) : type === 'lily' ? R(26, 44) : type === 'poppy' ? R(22, 36) : type === 'rose' ? R(16, 26) : type === 'cup' ? R(16, 26) : R(18, 30)) * U * z * 1.35, w: R(1.6, 2.8) * U * z, shed: [], mist: q >= .14 && q < .7, pts: [], k2: (type === 'tendril' ? R(5, 9) : R(1.5, 4)) * (rnd() < .5 ? 1 : -1) / len };
+    if (b.type === 'fern') { b.np = RI(14, 22); b.coil = R(5, 8); }
+    if (spec) { b.slot = slot; b.mist = false; b.straight = 1; b.k = 0; }
+    if (x > -.1 * W && x < 1.1 * W) this.list.push(b);
+  },
+  // Garden: everything is set out in an orderly grid, rows or a line. A plan is made once: every slot gets a kind of growth
+  // (all kinds, painted and living), a colour and a size, sorted by colour, size, kind or height. The order then stays as it is:
+  // the plants just grow, and a living plant that dies is followed by the same kind in the same colour
+  KINDS: ['grass', 'coral', 'fan', 'cushion', 'bush', 'puff', 'spike', 'pins', 'anemone', 'stem', 'vine', 'thread', 'daisy', 'lily', 'poppy', 'rose', 'cup', 'fern', 'tendril'],
+  LIVING: { daisy: 1, lily: 1, poppy: 1, rose: 1, cup: 1, fern: 1, tendril: 1 },
+  ORD: ['Colour', 'Size', 'Kind', 'Height'],
+  slots() {
+    const out = [];
+    if (this.arr === 'grid') { const cols = clamp(Math.round(W / H * 4), 4, 9), rows = 3, cw = W * .88 / cols; for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) out.push([W * .06 + cw * (i + .5), H * (.34 + j * .3), H * .24, cw]); }
+    else if (this.arr === 'line') { const n = clamp(Math.round(W / H * 8), 8, 18); for (let i = 0; i < n; i++) out.push([W * (.04 + .92 * (i + .5) / n), H * .9, H * .55, W * .92 / n]); }
+    else if (this.arr === 'rows') { const n = clamp(Math.round(W / H * 6), 6, 14); for (let j = 0; j < 2; j++) for (let i = 0; i < n; i++) out.push([W * (.04 + .92 * (i + .5 + (j ? .5 : 0)) / (n + (j ? .5 : 0))), H * (.5 + j * .44), H * .34, W * .92 / n]); }
+    return out;
+  },
+  setArr(v) { this.arr = v; this.plan = null; this.phase = v ? 1 : 0; if (this.ui) this.ui(); },
+  makePlan() {
+    const S = this.slots(), P = curP(), kinds = this.KINDS, specs = [];
+    for (let i = 0; i < S.length; i++) { const kind = kinds[i % kinds.length], hi = (i * 5 + RI(0, 2)) % P.hues.length, c1 = soft(P.hues[hi]), c2 = rnd() < .6 ? lite(c1, 14) : soft(P.hues[(hi + 1) % P.hues.length]);
+      specs.push({ kind, c1, c2, s: R(.6, 1.25), h: R(.55, 1) }); }
+    const key = q => this.order === 0 ? (q.c1[0] + 330) % 360 : this.order === 1 ? q.s : this.order === 2 ? kinds.indexOf(q.kind) : q.h * q.s;
+    specs.sort((p, q) => key(p) - key(q));
+    this.plan = S.map((sl, i) => Object.assign(specs[i], { x: sl[0], y: sl[1], H: sl[2], cw: sl[3], done: 0, at: i * .35 }));
+    this.pt = 0;
+  },
+  plantSlot(q, i) {
+    const l = LAYERS[2], pen = l.pen, u = pen.u, P = curP(), pal = palette(), c1 = q.c1, c2 = q.c2, h = q.H * q.h * q.s, x = q.x, y = q.y, r = Math.min(q.cw * .32, h * .4);
+    pal[0] = c1; pal[1] = c2;
+    if (this.LIVING[q.kind]) { this.spawn(0, q, i); return; }
+    switch (q.kind) {
+      case 'grass': grassBush(l, x, y, clamp(h / (200 * u), .5, 1.2)); break;
+      case 'coral': coral(pen, x, y, h, c1, c2, {}); break;
+      case 'fan': coral(pen, x, y, h, c1, c2, { fan: true }); break;
+      case 'cushion': cushion(pen, x, y - r * .4, r, c1, c2); break;
+      case 'bush': bush(pen, x, y, r * 1.2, pal.stem, c1); break;
+      case 'puff': puff(pen, x, y - r, r * .7, c1, c2); break;
+      case 'spike': for (let k = 0; k < 3; k++) spike(pen, x + (k - 1) * 8 * u, y, -PI / 2 + (k - 1) * .25, h * R(.7, 1), c1, pal.stem); break;
+      case 'pins': pinset(pen, x, y, pal, []); break;
+      case 'anemone': anemone(pen, x, y - r * .3, r, c1, c2, {}); break;
+      case 'stem': stemTo(pen, x, y, x + gauss() * 10 * u, y - h, { w: 1.8 * u, c: jit(pal.stem, 6, 4), tip: c1, sp: 30, leaf: R(26, 40) * u, head: (hx, hy, a) => flower(pen, hx, hy, r * .7, pal, a) }); break;
+      case 'vine': vine(pen, x, y, -PI / 2 + gauss() * .2, h * 1.1, 2.4 * u, jit(pal.stem, 8, 6), 0, pal); break;
+      case 'thread': thread(pen, x, y, -PI / 2 + gauss() * .3, h * 1.2, 1.3 * u, c1, 2); break;
+    }
+  },
+  arrange(dt) {
+    if (this.phase === 1) { if (this.tidy > .93) { clearAll(); decays.length = 0; for (const l of LAYERS) l.ag.fill(0); this.list.length = 0; this.makePlan(); this.phase = 2; } return; }
+    if (!this.plan) { this.makePlan(); this.phase = 2; }
+    this.pt += dt;
+    for (let i = 0; i < this.plan.length; i++) { const q = this.plan[i]; if (!q.done && this.pt >= q.at) { q.done = 1; this.plantSlot(q, i); } }
+    // living plants: in their own slot, upright; when one is gone, the same kind in the same colour follows
+    for (let i = 0; i < this.plan.length; i++) { const q = this.plan[i]; if (!this.LIVING[q.kind] || !q.done) continue; if (!this.list.some(b => b.slot === i)) { q.gap = (q.gap || R(2, 6)) - dt; if (q.gap <= 0) { q.gap = 0; this.spawn(0, q, i); } } }
+    const k = Math.min(1, dt * .9);
+    for (const b of this.list) { if (b.slot === undefined) continue; const q = this.plan[b.slot]; b.x += (q.x - b.x) * k; b.y += (q.y - b.y) * k; b.a += angDiff(-PI / 2, b.a) * k; b.k *= 1 - k; b.straight = Math.min(1, (b.straight || 0) + k); b.mist = false; b.hang = false; }
+  },
+  update(dt) {
+    this.tidy += ((this.phase === 1 ? 1 : 0) - this.tidy) * Math.min(1, dt * (this.phase === 1 ? .9 : 2));
+    if (this.arr) this.arrange(dt); else for (const b of this.list) if (b.straight) b.straight = Math.max(0, b.straight - dt * .2);
+    this.t -= dt; if (!this.arr && this.t <= 0) { this.t = R(2, 4.5); if (this.list.length < this.target()) this.spawn(); }
+    for (let i = this.list.length - 1; i >= 0; i--) {
+      const b = this.list[i]; b.t += dt; if (b.t >= b.T.fe) { this.list.splice(i, 1); continue; }
+      // collapsing: it crumbles into seeds that fall
+      if (b.t > b.T.se && b.pts.length && rnd() < dt * 9) { const p = pick(b.pts); addP(p[0], p[1], 5, rnd() < .5 ? DRY : mixc(b.c1, DRY, .6)); }
+      // ripe flowers now and then let out a few spores
+      if (b.type !== 'fern' && b.t > b.T.oe && b.t < b.T.we && rnd() < dt * .5 && b.hx !== undefined) for (let k = 0; k < 3; k++) addP(b.hx + gauss() * b.r * .3, b.hy + gauss() * b.r * .3, rnd() < .6 ? 1 : 2, rnd() < .5 ? b.pin : lite(b.c1, 20));
+    }
+    // fallen petals: they flutter down on the wind, land, lie a while and fade
+    for (let i = this.petals.length - 1; i >= 0; i--) {
+      const p = this.petals[i]; p.t += dt; if (p.t > p.life) { this.petals[i] = this.petals[this.petals.length - 1]; this.petals.pop(); continue; }
+      if (!p.down) {
+        const ci = clamp((p.x / W * GW) | 0, 0, GW - 1), cj = clamp((p.y / H * GH) | 0, 0, GH - 1), w = cj * GW + ci;
+        p.vx += ((WX[w] * 70 + Math.sin(p.t * 1.3 + p.ph) * 14) * U - p.vx) * Math.min(1, dt * 1.2);
+        p.vy += ((WY[w] * 50 + 22 + Math.cos(p.t * 1.7 + p.ph) * 12) * U * p.k - p.vy) * Math.min(1, dt * 1.2);
+        p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt; p.flip += p.vf * dt;
+        if (p.y > p.floor) { p.down = 1; p.y = p.floor; p.life = Math.min(p.life, p.t + R(5, 10)); }
+      }
+    }
+  },
+  // the stem as a list of points from the base: a gentle curve, swaying with the wind and the breeze, drooping when it wilts
+  stemPts(b, L, droop) {
+    const N = 16, ds = L / N, pts = b.pts; pts.length = 0; let x = b.x, y = b.y, a = b.a;
+    const hx = b.x + Math.cos(b.a) * L * .7, hy = b.y + Math.sin(b.a) * L * .7, ci = clamp((hx / W * GW) | 0, 0, GW - 1), cj = clamp((hy / H * GH) | 0, 0, GH - 1), w = cj * GW + ci;
+    // the wind does not move a stem directly: it pulls on a soft spring, so a stem leans in slowly, overshoots a touch and settles back, never jumps
+    const wt = Math.tanh((WX[w] * Math.sin(-b.a) * -1 + WY[w] * Math.cos(b.a)) * .9 / .38) * .38, sdt = Math.min(.05, Math.max(0, vtime - (b.swT === undefined ? vtime : b.swT)));
+    b.swT = vtime; if (b.swd === undefined) { b.swd = 0; b.swv = 0; }
+    if (sdt > 0) { const wn = 1.7 + (b.ph * 7.3 % 1) * 1.1; b.swv += ((wt - b.swd) * wn * wn - 2 * .8 * wn * b.swv) * sdt; b.swv = clamp(b.swv, -1.2, 1.2); b.swd += b.swv * sdt; }
+    const sway = (Math.sin(vtime * (.45 + (b.ph % 1) * .3) + b.ph) * .1 + Math.sin(vtime * 1.3 + b.ph * 2) * .03) + b.swd;      // every stem moves in its own rhythm
+    const dSign = Math.cos(b.a) >= 0 ? 1 : -1;
+    pts.push([x, y, a]);
+    for (let i = 0; i < N; i++) { const f = (i + .5) / N; a += (b.k + b.k2 * f * f * (1 - (b.straight || 0))) * ds + sway * 2 * f / N * 2 + droop * dSign * 2.4 * f / N * (b.hang ? -.3 : 1); x += Math.cos(a) * ds; y += Math.sin(a) * ds; pts.push([x, y, a]); }
+    return pts;
+  },
+  ribbon(k, pts, w0, w1) {      // a tapered stem as one filled shape, so there is no outline
+    const n = pts.length; k.beginPath();
+    for (let i = 0; i < n; i++) { const p = pts[i], f = i / (n - 1), w = (w0 + (w1 - w0) * f) * .5, nx = -Math.sin(p[2]) * w, ny = Math.cos(p[2]) * w; i ? k.lineTo(p[0] + nx, p[1] + ny) : k.moveTo(p[0] + nx, p[1] + ny); }
+    for (let i = n - 1; i >= 0; i--) { const p = pts[i], f = i / (n - 1), w = (w0 + (w1 - w0) * f) * .5, nx = -Math.sin(p[2]) * w, ny = Math.cos(p[2]) * w; k.lineTo(p[0] - nx, p[1] - ny); }
+    k.closePath(); k.fill();
+  },
+  // a leaf or petal shape along angle a: base at (x,y), length L, half width wd, its tip curled by cu; two halves in two tones, like a folded leaf
+  // a petal or leaf: one organic shape with a wavering edge, filled with a soft gradient from a deep base to a pale, see-through tip,
+  // with fine grain and a few filament veins, like the rest of the garden. sd makes every one a little different
+  blade(k, x, y, a, L, wd, cu, cB, cT, al, ruf, sd = 0) {
+    if (L < .5 || al < .01) return;
+    const ca = Math.cos(a), sa = Math.sin(a), nx = -sa, ny = ca, w1 = 1 + .18 * Math.sin(sd * 3.1), w2 = 1 + .18 * Math.cos(sd * 2.3), wob = (ruf || 0) + .04;
+    const P = (f, side) => { const bend = cu * L * f * f, wf = Math.sin(Math.PI * Math.pow(f, .8)) * (side > 0 ? w1 : w2) * (1 + wob * Math.sin(f * 9 + sd * 5 + side)), cx = x + ca * L * f + nx * bend, cy = y + sa * L * f + ny * bend; return [cx + nx * wd * wf * side, cy + ny * wd * wf * side]; };
+    const tx = x + ca * L + nx * cu * L, ty = y + sa * L + ny * cu * L;
+    k.beginPath(); k.moveTo(x, y);
+    for (let i = 1; i <= 6; i++) { const q = P(i / 7, 1); k.lineTo(q[0], q[1]); } k.lineTo(tx, ty);
+    for (let i = 6; i >= 1; i--) { const q = P(i / 7, -1); k.lineTo(q[0], q[1]); } k.closePath();
+    const g = k.createLinearGradient(x, y, tx, ty); g.addColorStop(0, hs(cB, al * .95, -12)); g.addColorStop(.45, hs(mixc(cB, cT, .5), al * .88, 0)); g.addColorStop(1, hs(cT, al * .45, 14));
+    k.fillStyle = g; k.fill();
+    if (GRAIN) { k.save(); k.globalCompositeOperation = 'source-atop'; k.globalAlpha = .22 * al; k.fillStyle = GRAIN; k.fill(); k.restore(); }
+    if (L > 6 * U) { k.strokeStyle = hs(cT, al * .28, 22); k.lineWidth = .45 * U; k.beginPath();
+      for (const v of [-.45, 0, .45]) { const b0 = P(.08, 1), mx = x + ca * L * .55 + nx * (cu * L * .3 + wd * v * .7), my = y + sa * L * .55 + ny * (cu * L * .3 + wd * v * .7); k.moveTo(x + ca * L * .08, y + sa * L * .08); k.quadraticCurveTo(mx, my, x + ca * L * .92 + nx * (cu * L * .85 + wd * v * .25), y + sa * L * .92 + ny * (cu * L * .85 + wd * v * .25)); }
+      k.stroke(); }
+  },
+  drop(b, x, y, a, L, c) { this.petals.push({ x, y, vx: Math.cos(a) * 8 * U, vy: R(-4, 4) * U, rot: a, vr: R(-1.6, 1.6), flip: R(TAU), vf: R(2, 5), L, c, t: 0, life: R(18, 30), ph: R(TAU), k: R(.6, 1.2), floor: Math.min(H * R(.94, 1.02), b.hang ? H * R(.6, 1) : Math.max(b.y, y + R(.2, .6) * H)) }); },
+  draw() {
+    const k = lx, vw = Math.round(W * DPR), vh = Math.round(H * DPR);
+    if (liveCv.width !== vw || liveCv.height !== vh) { liveCv.width = vw; liveCv.height = vh; }
+    k.setTransform(1, 0, 0, 1, 0, 0); k.clearRect(0, 0, vw, vh); k.setTransform(DPR, 0, 0, DPR, 0, 0);
+    this.list.sort((p, q) => p.z - q.z);
+    for (const b of this.list) this.one(k, b);
+    for (const p of this.petals) {      // the petal turns over as it falls: drawn narrower when seen edge-on
+      const a = Math.min(1, (p.life - p.t) / 4) * .95, sx = Math.cos(p.flip);
+      k.save(); k.translate(p.x, p.y); k.rotate(p.rot); k.scale(1, .35 + .65 * Math.abs(sx));
+      this.blade(k, -p.L * .5, 0, 0, p.L, p.L * .2, .15, p.c, lite(p.c, sx > 0 ? 10 : 2), a, 0, p.ph); k.restore();
+    }
+  },
+  one(k, b) {
+    const T = b.T, t = b.t, g = ph01(t, 0, T.ge), op = ph01(t, T.ge - 2, T.oe), wl = ph01(t, T.he, T.we), sh = ph01(t, T.we, T.se), fade = 1 - ph01(t, T.se, T.fe), born = ph01(t, 0, 3);
+    const col = ph01(t, T.se, T.fe - 1.5), dry = Math.min(1, wl * .7 + col * .3), alpha = born * (1 - ph01(t, T.fe - 1.5, T.fe));      // col: the collapse after the petals are gone
+    if (alpha < .01) return;
+    const cS = mixc(b.stem, DRY, dry * .8), L = b.len * (.08 + .92 * g) * (1 - col * .55), pts = this.stemPts(b, L, wl * .9 + sh * .3 + col * 1.6), n = pts.length - 1, head = pts[n];
+    // the stem; out of the mist its foot fades in, so it seems to come from nowhere
+    if (b.mist) { const p0 = pts[0], p1 = pts[Math.min(n, 5)], gr = k.createLinearGradient(p0[0], p0[1], p1[0], p1[1]); gr.addColorStop(0, hs(cS, 0, -4)); gr.addColorStop(1, hs(cS, alpha, -4)); k.fillStyle = gr; }
+    else { const g0 = k.createLinearGradient(pts[0][0], pts[0][1], head[0], head[1]); g0.addColorStop(0, hs(cS, alpha, -10)); g0.addColorStop(1, hs(cS, alpha * .9, 10)); k.fillStyle = g0; }
+    this.ribbon(k, pts, b.w, b.w * .4);
+    // leaves unfold like a book along the stem once the stem has passed them, then droop and dry when the plant wilts
+    for (const lf of b.leaves) {
+      const at = lf.s * b.len; if (L < at + 4 * U || lf.off) continue;
+      if (col > lf.s * .6 + .05) { lf.off = 1; const i0 = Math.min(n, Math.round(lf.s * b.len / L * n)); this.drop(b, pts[i0][0], pts[i0][1], pts[i0][2] + lf.side, lf.L, mixc(b.cd, DRY, .8)); continue; }
+      const fi = Math.min(n - .001, lf.s * b.len / L * n), i0 = fi | 0, fr = fi - i0, A = pts[i0], B = pts[i0 + 1], p = [A[0] + (B[0] - A[0]) * fr, A[1] + (B[1] - A[1]) * fr, A[2] + angDiff(B[2], A[2]) * fr], u = ph01(t, T.ge * (lf.s * .9) + lf.d, T.ge * (lf.s * .9) + lf.d + 6);
+      const ang = p[2] + lf.side * (lf.ang * (.25 + .75 * u) + wl * .7) , cl = mixc(b.cd, DRY, dry);
+      this.blade(k, p[0], p[1], ang, lf.L * (.4 + .6 * u), lf.L * lf.Wd * u * .5, lf.side * (.25 * (1 - u) + .1 + wl * .25), mixc(cl, [cl[0], cl[1], cl[2] - 14], .6), lite(cl, 14), alpha, 0, lf.s * 9);
+    }
+    b.hx = head[0]; b.hy = head[1];
+    if (b.type === 'fern') return this.fern(k, b, pts, g, wl, alpha);
+    const hdA = head[2], cP = mixc(b.c1, DRY, dry), cQ = mixc(b.c2, DRY, dry * .8), r = b.r * (.25 + .75 * ph01(t, T.ge * .6, T.oe));
+    const lost = Math.floor(sh * b.n * 1.01), shatter = b.type === 'lily' || b.type === 'poppy';
+    // petals let go one by one (daisy, rose, cup), or all at once (lily, poppy)
+    while (b.shed.length < (shatter ? (sh > .3 ? b.n : 0) : lost)) { const j = b.shed.length; b.shed.push(j); const pa = hdA + (j / b.n) * TAU; this.drop(b, head[0] + Math.cos(pa) * r * .6, head[1] + Math.sin(pa) * r * .6, pa, r * .9, cP); }
+    const gone = j => b.shed.length > j;
+    if (b.type === 'daisy' || b.type === 'tendril') {      // rays lift in a wave around the ring, the disc florets ripen from the rim inward
+      for (let j = 0; j < b.n; j++) { if (gone(j)) continue;
+        const e = ease((op * 1.6 - j / b.n * .6)), ja = hdA + (j / b.n - .5) * TAU * (.12 + .88 * e) + PI * (1 - e) * 0 + wl * .5 * Math.sin(j / b.n * TAU) , droop = wl * .5;
+        const aa = ja + (Math.cos(ja) > 0 ? droop : -droop) * (b.hang ? -1 : 1);
+        this.blade(k, head[0], head[1], aa, r * (.35 + .65 * e) * (1 - wl * .2), r * .13 * (.5 + .5 * e), .06 * Math.sin(j * 2.1), cP, cQ, alpha, .05, b.seed + j * 1.7); }
+      const dr = r * .26 * (.4 + .6 * op), dc = mixc(b.pin, DRY, dry); { const g = k.createRadialGradient(head[0] - dr * .2, head[1] - dr * .25, 0, head[0], head[1], dr * 1.15); g.addColorStop(0, hs(dc, alpha, 10)); g.addColorStop(.7, hs(dc, alpha * .9, -8)); g.addColorStop(1, hs(dc, 0, -14)); k.fillStyle = g; k.beginPath(); k.arc(head[0], head[1], dr * 1.15, 0, TAU); k.fill(); }
+      const rip = op * 1.2; k.fillStyle = hs(lite(b.pin, 18), alpha * .45);
+      for (let j = 0; j < 14; j++) { const f = 1 - j / 14; if (f > rip) continue; const aa = j * 2.4, rr = dr * .8 * Math.sqrt(f); k.beginPath(); k.arc(head[0] + Math.cos(aa) * rr, head[1] + Math.sin(aa) * rr, dr * .14, 0, TAU); k.fill(); }
+    } else if (b.type === 'lily') {      // a long bud swells, then six petals part and curl backwards, their edges ruffling
+      const sw = ph01(t, T.ge * .5, T.ge), rf = ph01(t, T.ge + T.o * .45, T.oe);
+      for (let j = 0; j < 6; j++) { if (gone(j)) continue;
+        const side = (j - 2.5) / 2.5, spread = side * (.08 + 1.05 * op) + side * wl * .4, aa = hdA + spread;
+        this.blade(k, head[0], head[1], aa, r * (.6 + .4 * sw) * (1.05 - .2 * rf), r * (.1 + .08 * sw), side * (rf * .55 + wl * .3) + (j % 2 ? .03 : -.03), cP, cQ, alpha, .12 * rf + .05, b.seed + j * 1.7); }
+      k.fillStyle = hs(lite(b.pin, 10), alpha * op); k.beginPath(); k.arc(head[0] + Math.cos(hdA) * r * .25, head[1] + Math.sin(hdA) * r * .25, r * .07, 0, TAU); k.fill();
+    } else if (b.type === 'poppy') {      // crumpled petals smooth out as they open; a dark heart
+      const cr = 1 - op;
+      for (let j = 0; j < b.n; j++) { if (gone(j)) continue;
+        const aa = hdA + (j / b.n) * TAU * (.25 + .75 * op) - TAU * .5 * (.25 + .75 * op) * (1 - 1 / b.n) + Math.sin(vtime * .4 + j) * .02;
+        this.blade(k, head[0], head[1], aa, r * (.45 + .55 * op), r * (.34 + .1 * op), .1 * Math.sin(j * 1.7) + wl * .2, cP, cQ, alpha, .3 * cr + .08, b.seed + j * 1.7); }
+      { const g = k.createRadialGradient(head[0], head[1], 0, head[0], head[1], r * .22); g.addColorStop(0, hs([b.c1[0], 30, 14], alpha * (.3 + .7 * op))); g.addColorStop(1, hs([b.c1[0], 30, 20], 0)); k.fillStyle = g; k.beginPath(); k.arc(head[0], head[1], r * .22, 0, TAU); k.fill(); }
+    } else if (b.type === 'rose' || b.type === 'cup') {      // a whorl: the outer petals peel open first, the inner ones stay cupped
+      const rings = b.type === 'rose' ? 3 : 1, per = b.type === 'rose' ? 5 : 5;
+      for (let ring = 0; ring < rings; ring++) { const e = ease(op * 1.5 - ring * .3), rr = r * (1 - ring * .27);
+        for (let j = 0; j < per; j++) { const id = ring * per + j; if (b.type === 'rose' ? gone(b.n - 1 - id) : gone(j)) continue;
+          const aa = hdA + (j / per) * TAU * (b.type === 'cup' ? .35 + .3 * e : 1) - (b.type === 'cup' ? TAU * .17 : 0) + ring * .6;
+          this.blade(k, head[0], head[1], aa, rr * (.45 + .55 * e), rr * (.32 - .08 * e), .2 * (1 - e) + wl * .2, [cP[0], cP[1], cP[2] - ring * 5], cQ, alpha, .08, b.seed + id * 1.3); } }
+    }
+  },
+  // a fern: the frond is coiled up like a fiddlehead and unrolls from the base to the tip; the leaflets open as they come free
+  fern(k, b, pts, g, wl, alpha) {
+    const T = b.T, un = ph01(b.t, T.ge * .3, T.oe + T.h * .2), base = pts[pts.length - 1], N = 40, Lf = b.len * .9 * (.3 + .7 * g), ds = Lf / N, cS = mixc(b.cd, DRY, wl * .7);
+    let x = base[0], y = base[1], a = base[2]; const sp = [[x, y, a]], side = b.k >= 0 ? 1 : -1;
+    for (let i = 0; i < N; i++) { const s = i / N, coil = clamp((s - un) / .25, 0, 1); const sc = 1 - coil * .82; a += side * (coil * b.coil / (N * (1.08 - s)) * 1.6 + .012 + wl * .03); x += Math.cos(a) * ds * sc; y += Math.sin(a) * ds * sc; sp.push([x, y, a]); }
+    { const g0 = k.createLinearGradient(sp[0][0], sp[0][1], x, y); g0.addColorStop(0, hs(cS, alpha, -8)); g0.addColorStop(1, hs(cS, alpha * .85, 12)); k.fillStyle = g0; } this.ribbon(k, sp, b.w * .8, b.w * .25);
+    const np = b.np;
+    for (let j = 1; j < np; j++) { const s = j / np, i = Math.min(N, Math.round(s * N)), p = sp[i], free = clamp((un - s) / .15 + .2, 0, 1); if (free <= 0) continue;
+      const Lp = b.r * 1.3 * (1 - s * .7) * free;
+      for (const sd of [-1, 1]) this.blade(k, p[0], p[1], p[2] + sd * (.4 + .8 * free + wl * .5), Lp, Lp * .18, sd * (.1 + .3 * (1 - free)), cS, lite(mixc(mixc(b.cd, b.c1, .25), DRY, wl * .7), 12), alpha, .04, j * 2.3 + sd); }
+    b.hx = x; b.hy = y;
+  },
+};
+
+/* ───────────── particles: spores, pollen, dust and soft out-of-focus specks, simulated on the CPU and drawn on the GPU ─────────────
+   They drift on a slow swirling field, are carried by the wind (so the pointer and the camera push them) and fade in and out */
+const PN = 7000, PA = new Float32Array(PN * 14), PV = new Float32Array(PN * 8); let pCount = 0;
+const ptrImp = [];
+// kinds: 0 dust, 1 pollen, 2 glowing spore, 3 soft blur speck close to the eye, 4 twinkle, 5 seed (falls)
+function addP(x, y, kind, c, life) {
+  if (pCount >= PN) return; const o = pCount++ * 14, rgb = hsl2rgb(kind === 5 ? c : [c[0], Math.min(100, c[1] * (kind === 0 ? .4 : .85)), Math.min(94, c[2] + (kind === 0 ? 30 : kind === 3 ? 18 : 14))]);
+  const sz = kind === 5 ? R(1.2, 2.2) : kind === 0 ? R(.6, 1.2) : kind === 1 ? R(1.1, 2.1) : kind === 2 ? R(2.4, 4.6) : kind === 3 ? R(9, 22) : R(1.4, 2.6);
+  PA[o] = x; PA[o + 1] = y; PA[o + 2] = R(-3, 3) * U; PA[o + 3] = R(-3, 2) * U; PA[o + 4] = 0; PA[o + 5] = life || (kind === 3 ? R(10, 20) : kind === 2 ? R(9, 18) : R(5, 13));
+  PA[o + 6] = sz * U; PA[o + 7] = kind; PA[o + 8] = rgb[0]; PA[o + 9] = rgb[1]; PA[o + 10] = rgb[2]; PA[o + 11] = R(TAU); PA[o + 12] = kind === 5 ? R(.6, .9) : kind === 3 ? R(.04, .09) : kind === 0 ? R(.25, .45) : kind === 2 ? R(.4, .7) : R(.5, .85); PA[o + 13] = kind === 3 ? R(1.6, 2.4) : kind === 2 ? R(.6, 1) : R(.3, 1);
+}
+function runP(dt) {
+  // the air is never empty: a steady trickle of specks everywhere, more where the garden is busy
+  const P = curP(), amb = dt * (60 + 60 * eg);
+  for (let i = 0; i < amb || rnd() < amb - i; i++) { if (i > 30) break; const q = rnd(), c = rnd() < .5 ? P.hues[P.act[0]] : rnd() < .5 ? P.hues[P.act[1]] : [40, 30, 90];
+    addP(R(-.02, 1.02) * W, R(-.02, 1.02) * H, q < .5 ? 0 : q < .8 ? 1 : q < .92 ? 2 : q < .96 ? 3 : 4, c); }
+  const t = vtime, imp = ptrImp.length, n0 = 1 / (180 * U), rr = (70 * U) ** 2;
+  for (let i = pCount - 1; i >= 0; i--) {
+    const o = i * 14; PA[o + 4] += dt;
+    if (PA[o + 4] > PA[o + 5] || PA[o] < -.08 * W || PA[o] > 1.08 * W || PA[o + 1] < -.08 * H || PA[o + 1] > 1.08 * H) { pCount--; if (i !== pCount) PA.copyWithin(o, pCount * 14, pCount * 14 + 14); continue; }
+    const x = PA[o], y = PA[o + 1], ci = clamp((x / W * GW) | 0, 0, GW - 1), cj = clamp((y / H * GH) | 0, 0, GH - 1), w = cj * GW + ci, k = PA[o + 7], lt = PA[o + 13];
+    // a slow curling flow (the curl of a sum of waves), plus the wind, plus a little lift for the light ones
+    const X = x * n0, Y = y * n0, cx = Math.cos(Y * 1.7 + t * .07) * 1.3 + Math.cos(X * .9 + Y * 2.3 - t * .05) * .8, cy = -Math.cos(X * 1.9 - t * .06) * 1.3 - Math.cos(X * .9 + Y * 2.3 - t * .05) * .6;
+    const tx = (cx * 7 + WX[w] * 90 / lt) * U, ty = (cy * 6 + WY[w] * 70 / lt - (k === 2 ? 3 : k === 1 ? -1.5 : k === 5 ? -26 : 1)) * U, f = Math.min(1, dt * (.9 / lt));
+    PA[o + 2] += (tx - PA[o + 2]) * f; PA[o + 3] += (ty - PA[o + 3]) * f;
+    for (let j = 0; j < imp; j += 4) { const dx = x - ptrImp[j], dy = y - ptrImp[j + 1], d2 = dx * dx + dy * dy; if (d2 < rr) { const s = (1 - d2 / rr) * 2.2 / lt; PA[o + 2] += ptrImp[j + 2] * s; PA[o + 3] += ptrImp[j + 3] * s; } }
+    PA[o] += PA[o + 2] * dt; PA[o + 1] += PA[o + 3] * dt;
+  }
+  ptrImp.length = 0;
+}
+function packP() {      // x, y, size, alpha, r, g, b, kind
+  for (let i = 0; i < pCount; i++) { const o = i * 14, v = i * 8, a = PA[o + 4], L = PA[o + 5], k = PA[o + 7];
+    let al = Math.min(1, a / 1.2, (L - a) / 2.5) * PA[o + 12]; if (k === 4 || k === 1) al *= .35 + .65 * Math.sin(a * (k === 4 ? 3.1 : 1.3) + PA[o + 11]) ** 2;
+    PV[v] = PA[o]; PV[v + 1] = PA[o + 1]; PV[v + 2] = PA[o + 6]; PV[v + 3] = al; PV[v + 4] = PA[o + 8]; PV[v + 5] = PA[o + 9]; PV[v + 6] = PA[o + 10]; PV[v + 7] = k; }
+}
+
+/* ───────────── compositor (WebGL): depth of field, slow camera drift, and sway where there is movement ───────────── */
+const view = $('view');
+// wind: a field of gust vectors. A gust is laid down where something moves, travels on downwind and dies out.
+const WX = new Float32Array(GW * GH), WY = new Float32Array(GW * GH), WX2 = new Float32Array(GW * GH), WY2 = new Float32Array(GW * GH), SWB = new Uint8Array(GW * GH * 2);
+function windAt(x, y, dx, dy, amt, rad = 2.6) {
+  const m = Math.hypot(dx, dy); if (m < 1e-6) return; dx /= m; dy /= m;
+  const ci = x / W * GW, cj = y / H * GH, n = Math.ceil(rad * 1.7), i0 = Math.floor(ci), j0 = Math.floor(cj);
+  for (let j = j0 - n; j <= j0 + n; j++) for (let i = i0 - n; i <= i0 + n; i++) {
+    if (i < 0 || j < 0 || i >= GW || j >= GH) continue;
+    const w = Math.exp(-((i + .5 - ci) ** 2 + (j + .5 - cj) ** 2) / (rad * rad)) * amt, id = j * GW + i; let vx = WX[id] + dx * w, vy = WY[id] + dy * w; const l = Math.hypot(vx, vy); if (l > 1) { vx /= l; vy /= l; }
+    WX[id] = vx; WY[id] = vy;
+  }
+}
+const swayDir = [1, 0];
+function swayAt(x, y, amt) { windAt(x, y, swayDir[0], swayDir[1], amt); }
+const gusts = []; let gustT = 6;
+function windStep(dt) {
+  // now and then a soft breath of wind crosses the whole garden by itself
+  gustT -= dt; if (gustT <= 0) { gustT = R(10, 24); const dir = rnd() < .5 ? 1 : -1; gusts.push({ x: dir > 0 ? -.05 * W : 1.05 * W, y: R(.1, .9) * H, dir, h: R(.12, .3) * H, s: R(.22, .34) * W, a: R(.5, 1), sl: R(-.12, .12) }); }
+  for (let g = gusts.length - 1; g >= 0; g--) { const q = gusts[g]; q.x += q.dir * q.s * dt; q.y += q.sl * q.s * dt; for (let k = -1; k <= 1; k++) windAt(q.x, q.y + k * q.h * .5, q.dir, q.sl, q.a * dt * 1.5, 3.2); if (q.x < -.1 * W || q.x > 1.1 * W) gusts.splice(g, 1); }
+  const ds = Math.exp(-dt * .85), adv = 13 * dt;
+  for (let j = 0; j < GH; j++) for (let i = 0; i < GW; i++) {
+    const id = j * GW + i; let ax = 0, ay = 0;
+    for (let b = -1; b <= 1; b++) { const jj = j + b; if (jj < 0 || jj >= GH) continue; for (let a = -1; a <= 1; a++) { const ii = i + a; if (ii < 0 || ii >= GW) continue; ax += WX[jj * GW + ii]; ay += WY[jj * GW + ii]; } }
+    const l = Math.hypot(ax, ay);
+    if (l < .004) { WX2[id] = WX[id] * ds; WY2[id] = WY[id] * ds; continue; }
+    const sx = clamp(i - ax / l * adv, 0, GW - 1.001), sy = clamp(j - ay / l * adv, 0, GH - 1.001), x0 = sx | 0, y0 = sy | 0, fx = sx - x0, fy = sy - y0, p = y0 * GW + x0;
+    const vx = (WX[p] * (1 - fx) + WX[p + 1] * fx) * (1 - fy) + (WX[p + GW] * (1 - fx) + WX[p + GW + 1] * fx) * fy, vy = (WY[p] * (1 - fx) + WY[p + 1] * fx) * (1 - fy) + (WY[p + GW] * (1 - fx) + WY[p + GW + 1] * fx) * fy;
+    WX2[id] = (vx * .92 + ax / 9 * .08) * ds; WY2[id] = (vy * .92 + ay / 9 * .08) * ds;
+  }
+  WX.set(WX2); WY.set(WY2);
+  for (let i = 0; i < WX.length; i++) { SWB[i * 2] = clamp(127.5 + WX[i] * 127.5, 0, 255); SWB[i * 2 + 1] = clamp(127.5 + WY[i] * 127.5, 0, 255); }
+}
+let GLX = null;
+const VS = `#version 300 es
+in vec2 aP; out vec2 vUv; void main(){ vUv = vec2(aP.x * .5 + .5, .5 - aP.y * .5); gl_Position = vec4(aP, 0., 1.); }`;
+const FS_COMMON = `#version 300 es
+precision highp float;
+in vec2 vUv; out vec4 o;
+uniform vec2 uRes; uniform float uT; uniform vec3 uCam; uniform sampler2D uE;
+float hash(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f); return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
+float ih(uvec2 p){ uint h = p.x * 1597334673u ^ p.y * 3812015801u; h ^= h >> 16; h *= 2246822519u; h ^= h >> 13; h *= 3266489917u; h ^= h >> 16; return float(h) * (1. / 4294967296.); }
+// fine organic grain: even, patternless noise per pixel that changes every frame (no lattice, no tiling); it also dithers away banding
+vec3 finish(vec3 c, vec2 uv){ vec2 q = uv - vec2(.5, .46); c *= 1. - dot(q, q) * .55; uvec2 p = uvec2(uv * uRes); uint f = uint(uT * 60.);
+  float n = ih(p + uvec2(f * 7919u, f * 104729u)) + ih(p.yx + uvec2(f * 3571u + 17u, f * 6151u + 5u)) - 1.; float st = ih(p / 2u + 91u) - .5;      // moving grain plus a fixed, slightly coarser tooth
+  c += n * .042 + st * .03 * (.4 + .6 * dot(c, vec3(.33))); return c; }
+`;
+const FS_COMP = FS_COMMON + `
+uniform sampler2D uBg, uL0, uL1, uL2, uL3, uGlyph, uA0, uA1, uA2, uA3, uLv, uPt; uniform vec4 uBlur; uniform int uLook; uniform float uTidy; uniform vec2 uSp;
+float ib(vec2 u){ vec2 e = smoothstep(0., .01, u) * smoothstep(1., .99, u); return e.x * e.y; }
+vec4 gR = vec4(0.); vec2 gO0 = vec2(0.), gO1 = vec2(0.), gO2 = vec2(0.), gO3 = vec2(0.); int gL = 0;      // extra turn and drift per layer (0 far .. 3 near), set by a look
+vec2 camUv(vec2 uv, float depth, float zoom){ float as = uRes.x / uRes.y; vec2 p = uv - .5; p.x *= as; float a = uCam.z * depth + gR[gL], c = cos(a), s = sin(a); p = vec2(c * p.x - s * p.y, s * p.x + c * p.y) / zoom; p.x /= as;
+  vec2 o = gL == 0 ? gO0 : gL == 1 ? gO1 : gL == 2 ? gO2 : gO3; return p + .5 + uCam.xy * depth * vec2(.011, .007) + o; }
+vec4 smp(sampler2D t, vec2 uv, float r){ vec4 a = vec4(0.); for (int i = 0; i < 12; i++){ float f = float(i) + .5, rr = sqrt(f / 12.), th = f * 2.39996; a += texture(t, uv + vec2(cos(th), sin(th)) * rr * r / uRes); } return a / 12.; }
+// the garden: rgb, and in alpha how much of this pixel is growth rather than background
+vec3 gB;      // the background behind the growth at the last pixel read, so a look can swap it for its own
+vec4 sceneA(vec2 uv){
+  gL = 0; vec3 c = smp(uBg, camUv(uv, .12, 1.02) - gO0, uRes.y * .012).rgb; vec4 l; float cv = 0.; gB = c;      // read softly, so the low-res background never shows its cells
+  float tk = 1. - uTidy * .82; gL = 0; vec2 ua = camUv(uv, .4, 1.03); l = smp(uL0, ua, uBlur.x) * ib(ua) * tk; c = l.rgb + c * (1. - l.a); cv = l.a + cv * (1. - l.a);
+  gL = 1; ua = camUv(uv, .65, 1.04); l = smp(uL1, ua, uBlur.y) * ib(ua) * tk; c = l.rgb + c * (1. - l.a); cv = l.a + cv * (1. - l.a);
+  gL = 2; vec2 u2 = camUv(uv, 1., 1.05); l = texture(uL2, u2) * ib(u2) * tk; float em = l.a - texture(uL2, u2 + vec2(1.6, 1.6) / uRes).a;
+  c = l.rgb + c * (1. - l.a); c += em * .07; cv = l.a + cv * (1. - l.a);
+  l = texture(uLv, u2) * ib(u2); c = l.rgb + c * (1. - l.a); cv = l.a + cv * (1. - l.a);      // the living flowers
+  gL = 3; ua = camUv(uv, 1.9, 1.1); l = smp(uL3, ua, uBlur.w) * ib(ua) * tk; c = l.rgb + c * (1. - l.a); cv = l.a + cv * (1. - l.a); gL = 0;
+  l = texture(uPt, u2) * ib(u2); c = l.rgb + c * (1. - l.a); cv = l.a * .5 + cv * (1. - l.a * .5);      // spores and dust
+  return vec4(c, cv); }
+vec3 scene(vec2 uv){ return sceneA(uv).rgb; }
+// the same without the soft focus: cheap, for outlines and offsets
+vec4 quick(vec2 uv){ vec3 c = texture(uBg, camUv(uv, .12, 1.02)).rgb; vec4 l; float cv = 0.;
+  l = texture(uL1, camUv(uv, .65, 1.04)); c = l.rgb + c * (1. - l.a); cv = l.a + cv * (1. - l.a);
+  l = texture(uL2, camUv(uv, 1., 1.05)); c = l.rgb + c * (1. - l.a); cv = l.a + cv * (1. - l.a);
+  l = texture(uLv, camUv(uv, 1., 1.05)); c = l.rgb + c * (1. - l.a); cv = l.a + cv * (1. - l.a);
+  l = texture(uL3, camUv(uv, 1.9, 1.1)); c = l.rgb + c * (1. - l.a); cv = l.a + cv * (1. - l.a);
+  return vec4(c, cv); }
+float lum(vec3 c){ return dot(c, vec3(.3, .59, .11)); }
+float sh(vec2 p, uint k){ return ih(uvec2(ivec2(floor(p))) + uvec2(k, k * 7u + 3u)); }
+
+float fbm(vec2 p){ float a = 0., w = .5; for (int i = 0; i < 6; i++){ a += vn(p) * w; p = p * 2.03 + 17.1; w *= .5; } return a; }
+// Space: no gravity. Every depth of the garden slowly turns and drifts on its own, so growth floats every which way
+// through a grainy nebula; colours stay as they are, they only glow a little
+vec3 space(vec2 uv){
+  gR = vec4(uT * .006 + 1.9, -uT * .009 - 2.3, uT * .004 + .6, -uT * .012 + 3.6);
+  gO0 = vec2(sin(uT * .011), cos(uT * .013)) * .06; gO1 = vec2(cos(uT * .009), sin(uT * .012)) * .05; gO2 = vec2(sin(uT * .007 + 2.), cos(uT * .008)) * .03; gO3 = vec2(cos(uT * .015), sin(uT * .01 + 1.)) * .08;
+  vec4 s = sceneA(uv); vec3 g = max(s.rgb - gB * (1. - s.a), 0.);
+  gR = vec4(0.); gO0 = gO1 = gO2 = gO3 = vec2(0.);
+  vec2 p = uv * uRes / uRes.y;
+  float n1 = fbm(p * 1.6 + vec2(uT * .004, 0.)), n2 = fbm(p * 3.4 - vec2(0., uT * .003) + 9.), n3 = fbm(p * 9. + 31.);
+  vec3 bg = vec3(.006, .008, .022) + vec3(.2, .06, .3) * smoothstep(.45, .85, n1) * (.6 + .4 * n3) + vec3(.02, .12, .2) * smoothstep(.5, .9, n2) * (.5 + .5 * n3);
+  bg += vec3(.08, .02, .1) * pow(n3, 3.) * smoothstep(.4, .8, n1);
+  bg *= .8 + .4 * sh(uv * uRes * .5, 5u) * smoothstep(.4, .7, n1);      // grainy, like dust in the cloud
+  vec2 q = uv * uRes / 26.; float h = sh(q, 3u); vec2 sp = vec2(sh(q, 11u), sh(q, 29u)); float d = length(fract(q) - sp);
+  bg += vec3(.9, .95, 1.) * step(.8, h) * smoothstep(.1, 0., d) * (.55 + .45 * sin(uT * (1. + h * 3.) + h * 60.));
+  bg += vec3(1.) * step(.9993, sh(uv * uRes, 41u)) * .7;
+  vec3 c = bg * (1. - s.a) + g;
+  return c / (1. + max(0., lum(c) - .7) * 1.5); }
+// Underwater: everything sways and drifts with a slow swell, light ripples down through it, the water takes the reds
+// and lends its own blue-green, deeper further away, with motes drifting past
+vec3 water(vec2 uv){
+  float sw = uT * .35;
+  gO0 = vec2(sin(sw * .7 + uv.y * 3.), cos(sw * .5)) * .006; gO1 = vec2(sin(sw * .9 + uv.y * 4. + 1.), cos(sw * .6 + 2.)) * .009;
+  gO2 = vec2(sin(sw + uv.y * 5. + 2.), cos(sw * .8 + uv.x * 3.)) * .012; gO3 = vec2(sin(sw * 1.2 + 3.), cos(sw * .9)) * .02; gR = vec4(sin(sw * .5) * .01, sin(sw * .6 + 1.) * .015, sin(sw * .7 + 2.) * .02, sin(sw * .8) * .03);
+  vec2 w = vec2(vn(uv * 9. + vec2(uT * .25, 0.)) - .5, vn(uv * 9. + vec2(0., uT * .2) + 7.) - .5) * .006;
+  vec4 s = sceneA(uv + w); gR = vec4(0.); gO0 = gO1 = gO2 = gO3 = vec2(0.);
+  vec3 g = max(s.rgb - gB * (1. - s.a), 0.) / max(s.a, .02);
+  vec3 deep = mix(vec3(.05, .32, .42), vec3(.01, .07, .14), smoothstep(0., 1., uv.y)), wc = deep + vec3(.06, .14, .12) * (vn(uv * 3. + uT * .02) - .5);
+  vec3 gw = g * vec3(.62, .95, 1.05) * 1.1; gw = mix(vec3(lum(gw)), gw, 1.25);
+  vec3 c = mix(wc, mix(gw, wc, .22), s.a);
+  vec2 p = uv * uRes / uRes.y * 6.; float ca = vn(p + vec2(uT * .3, uT * .1)) + vn(p * 1.6 - uT * .2 + 3.); ca = pow(1. - abs(ca - 1.), 8.);
+  c += ca * (.12 + .2 * s.a) * (1. - uv.y * .7) * vec3(.75, 1., .95);
+  float ray = fbm(vec2(uv.x * 4. + uv.y * 1.6 + uT * .015, uT * .02)); c += pow(ray, 2.5) * .22 * (1. - uv.y) * vec3(.6, .95, 1.);
+  for (int i = 0; i < 2; i++){ float fi = float(i); vec2 q = uv * uRes / (22. + fi * 18.) + vec2(sin(uT * .2 + fi) * 2., uT * (.25 + fi * .2)); float h = sh(q, 7u + uint(i)); c += vec3(.75, 1., .95) * step(.9, h) * smoothstep(.12, 0., length(fract(q) - .5)) * (.2 + fi * .15); }
+  return c; }
+// Botanical: an old botanical plate. Fine sepia ink lines, engraved hatching that follows the darkness, a pale hand-laid
+// tint of the plant's own colour, on aged paper with foxing; the plate has no background colour, only the plants
+vec3 sketch(vec2 uv){
+  vec2 px = 1. / uRes; vec4 a = quick(uv); float l0 = lum(a.rgb), lx = lum(quick(uv + vec2(px.x, 0.)).rgb), ly = lum(quick(uv + vec2(0., px.y)).rgb);
+  float ax = quick(uv + vec2(px.x * 1.5, 0.)).a, ay = quick(uv + vec2(0., px.y * 1.5)).a;
+  float e = smoothstep(.18, .6, length(vec2(lx - l0, ly - l0)) * 3. + length(vec2(ax - a.a, ay - a.a)) * 1.6);
+  vec2 p = uv * uRes; float fx = fbm(uv * 3.), fox = smoothstep(.62, .8, fbm(uv * 7. + 4.)) * .25;
+  vec3 paper = vec3(.93, .89, .78) * (.95 + .05 * fx) * (.985 + .015 * sh(p, 17u)) - vec3(.02, .05, .09) * fox;
+  vec2 q = uv - .5; paper *= 1. - dot(q, q) * .35;
+  vec3 gc = max(a.rgb - texture(uBg, camUv(uv, .12, 1.02)).rgb * (1. - a.a), 0.) / max(a.a, .02);
+  vec3 tint = mix(vec3(lum(gc)), gc, .55) * vec3(1., .95, .85);
+  float dk = clamp((1. - lum(gc)) * a.a * .8, 0., 1.);
+  float h1 = smoothstep(.4, .0, abs(fract((p.x * .8 + p.y * .6) / 3.2) - .5) * 2. - (1. - dk) * .9);
+  float h2 = smoothstep(.4, .0, abs(fract((p.x * .6 - p.y * .8) / 3.6) - .5) * 2. - (1. - smoothstep(.45, 1., dk)) * .95);
+  vec3 c = mix(paper, paper * mix(vec3(1.), clamp(tint * 1.25 + .15, 0., 1.), .5), a.a * .7);
+  vec3 ink = vec3(.22, .14, .08);
+  c = mix(c, ink, e * .7);
+  c = mix(c, ink, (h1 * .22 + h2 * .18) * a.a);
+  return c; }
+// VHS: a curved tube, scanlines, colour bleeding sideways, tape jitter and a rolling tracking band
+vec3 vhs(vec2 uv){
+  vec2 cu = uv;                                         // no curved tube edge: the picture fills the whole screen
+  float ln = floor(cu.y * uRes.y / 2.), trk = 1. - smoothstep(0., .04, abs(fract(cu.y * .6 - uT * .035) - .5));
+  float jit = (ih(uvec2(uint(ln), uint(uT * 24.))) - .5) * .0011 + trk * .006 * (ih(uvec2(uint(ln), 7u)) - .2);
+  vec2 su = cu + vec2(jit, 0.); vec3 c = scene(su);
+  c.r = mix(c.r, quick(su + vec2(.0035, 0.)).r, .7); c.b = mix(c.b, quick(su - vec2(.0035, 0.)).b, .7);
+  c = mix(vec3(lum(c)), c, 1.3) * 1.05;
+  c *= .82 + .18 * sin(cu.y * uRes.y * 1.5708);
+  float m = mod(gl_FragCoord.x, 3.); c *= vec3(m < 1. ? 1.08 : .94, m >= 1. && m < 2. ? 1.08 : .94, m >= 2. ? 1.08 : .94);
+  c += trk * .1 * (ih(uvec2(gl_FragCoord.xy) + uvec2(uint(uT * 60.))) - .3);
+  vec2 v = cu - .5; c *= 1. - dot(v, v) * .25;
+  return c; }
+
+// Riso: the background stays as it is; the plants are printed on top of it in three inks of overlapping halftone dots,
+// slightly out of register, the screens slowly drifting
+float dots(vec2 f, float ang, float amt, float s){ float c = cos(ang), si = sin(ang); vec2 r = mat2(c, -si, si, c) * f / s; float d = length(fract(r) - .5); return 1. - smoothstep(-.08, .08, d - sqrt(clamp(amt, 0., 1.)) * .74); }
+vec3 riso(vec2 uv){
+  vec2 mis = vec2(1.8 + 1.2 * sin(uT * .031), -1.2 + 1.2 * sin(uT * .023 + 1.));
+  vec4 s = sceneA(uv); vec3 bgc = gB; vec4 s2 = sceneA(uv + mis / uRes); vec4 s3 = sceneA(uv - mis.yx / uRes);
+  vec3 g1 = max(s.rgb - gB * (1. - s.a), 0.) / max(s.a, .02), g2 = max(s2.rgb - gB * (1. - s2.a), 0.) / max(s2.a, .02), g3 = max(s3.rgb - gB * (1. - s3.a), 0.) / max(s3.a, .02);
+  vec2 f = gl_FragCoord.xy - uRes * .5, f1 = f + vec2(uT * .9, sin(uT * .05) * 6.), f2 = f + vec2(-uT * .6, uT * .45), f3 = f + vec2(uT * .3, -uT * .7);
+  float ra = .05 * sin(uT * .013), rb = .05 * sin(uT * .017 + 2.), cell = max(3.2, uRes.y / 300.);
+  float aT = (1. - g1.r) * s.a * .8, aP = (1. - g2.g) * s2.a * .8, aY = (1. - g3.b) * s3.a * .7;
+  vec3 inkT = vec3(.0, .58, .78), inkP = vec3(1., .28, .56), inkY = vec3(1., .86, .25);
+  vec3 paperBg = mix(bgc, vec3(.96, .94, .9), .25);
+  vec3 c = paperBg * mix(vec3(1.), inkT, dots(f1, .26 + ra, aT, cell) * .92) * mix(vec3(1.), inkP, dots(f2, 1.31 + rb, aP, cell) * .9) * mix(vec3(1.), inkY, dots(f3, .79, aY, cell) * .85);
+  c = mix(c, c * .85 + .1 * paperBg, (1. - max(s.a, max(s2.a, s3.a))) * 0.);
+  return c * (.97 + .03 * sh(gl_FragCoord.xy, 19u)); }
+// Watercolour: transparent pigment on rough paper, a little bleed, no outlines
+vec3 wcol(vec2 uv){
+  vec2 n = vec2(vn(uv * uRes / 40.), vn(uv * uRes / 40. + 17.)) - .5, su = uv + n * .005;
+  vec4 s = sceneA(su);
+  vec3 paper = vec3(.97, .955, .92) * (.94 + .06 * vn(uv * uRes * .45)) * (.98 + .02 * sh(uv * uRes, 23u));
+  vec3 gc = max(s.rgb - gB * (1. - s.a), 0.) / max(s.a, .02);      // the growth's own colour, without the fog behind it
+  float gr = .7 + .45 * vn(uv * uRes / 7.) * vn(uv * uRes / 23. + 5.);      // granulation: pigment settles unevenly in the paper
+  vec3 pig = mix(vec3(1.), clamp(floor(gc * 6. + .5) / 6. * 1.1 + .08, 0., 1.), .8 * gr);
+  vec3 c = paper * mix(vec3(1.), pig, s.a * .92);
+  c *= mix(vec3(1.), texture(uBg, uv).rgb * .5 + .5, (1. - s.a) * .7);
+  return c; }
+
+// Pixel: big pixels, a few levels per colour, ordered dither between them
+const float BY[16] = float[16](0., 8., 2., 10., 12., 4., 14., 6., 3., 11., 1., 9., 15., 7., 13., 5.);
+vec3 pixel(vec2 uv){
+  float cs = max(2., floor(uRes.y / 230.)); vec2 cell = floor(uv * uRes / cs); vec3 c = scene((cell + .5) * cs / uRes);
+  int x = int(mod(cell.x, 4.)), y = int(mod(cell.y, 4.)); float th = (BY[y * 4 + x] + .5) / 16. - .5;
+  return floor(c * 5. + th + .5) / 5.; }
+
+void main(){
+  if (uLook == 1) {
+    vec2 cell = vec2(9., 17.) * max(1., floor(uRes.y / 900.)), fr = vUv * uRes, id = floor(fr / cell), loc = fract(fr / cell);
+    vec3 c = scene((id + .5) * cell / uRes); float lum = dot(c, vec3(.3, .59, .11)), idx = floor(clamp(pow(lum, .8) * 1.25, 0., .999) * 12.);
+    float g = texture(uGlyph, vec2((idx + loc.x) / 12., loc.y)).r;
+    o = vec4(mix(vec3(.015, .02, .03), c * 1.5 + .06, g), 1.); return;
+  }
+  vec3 c;
+  if (uLook == 2) c = space(vUv); else if (uLook == 3) c = water(vUv); else if (uLook == 4) c = sketch(vUv); else if (uLook == 5) c = vhs(vUv);
+  else if (uLook == 6) c = riso(vUv); else if (uLook == 7) c = wcol(vUv); else if (uLook == 8) c = pixel(vUv); else c = scene(vUv);
+  o = vec4(finish(c, vUv), 1.);
+}`;
+function glSetup() {
+  const gl = view.getContext('webgl2', { antialias: false, alpha: false, preserveDrawingBuffer: true }); if (!gl) return null;
+  const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
+  const prog = fs => { const p = gl.createProgram(); gl.attachShader(p, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs)); gl.bindAttribLocation(p, 0, 'aP'); gl.linkProgram(p); if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p)); const u = {}, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS); for (let i = 0; i < n; i++) { const nm = gl.getActiveUniform(p, i).name.replace('[0]', ''); u[nm] = gl.getUniformLocation(p, nm); } return { p, u }; };
+  const X = { gl, comp: prog(FS_COMP), tex: [] };
+  const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vb); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+  const mk = (filter, wrap) => { const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrap); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap); return t; };
+  for (let i = 0; i < 7; i++) X.tex.push(mk(gl.LINEAR, gl.CLAMP_TO_EDGE));
+  X.atex = []; for (let i = 0; i < 4; i++) X.atex.push(mk(gl.NEAREST, gl.CLAMP_TO_EDGE));          // per layer: which plant, and its root          // 0 bg, 1-4 layers, 5 sway field, 6 glyphs
+  { const g = document.createElement('canvas'), chars = ' .:-=+*o#%&@'; g.width = 12 * 18; g.height = 34; const c = g.getContext('2d'); c.fillStyle = '#000'; c.fillRect(0, 0, g.width, g.height); c.fillStyle = '#fff'; c.font = 'bold 26px ui-monospace,Menlo,Consolas,monospace'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    for (let i = 0; i < 12; i++) c.fillText(chars[i], i * 18 + 9, 18); gl.bindTexture(gl.TEXTURE_2D, X.tex[6]); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, g); }
+  X.ltex = mk(gl.LINEAR, gl.CLAMP_TO_EDGE); X.ptex = mk(gl.LINEAR, gl.CLAMP_TO_EDGE); X.fbo = gl.createFramebuffer(); X.fw = 0; X.fh = 0;
+  // particles: one point sprite each, shaped in the fragment shader
+  const PVS = `#version 300 es
+  layout(location = 1) in vec4 aA; layout(location = 2) in vec4 aB; uniform vec2 uG; uniform float uD, uMx; out vec4 vC; flat out float vK; out float vS;
+  void main(){ vec2 p = aA.xy / uG; gl_Position = vec4(p.x * 2. - 1., 1. - p.y * 2., 0., 1.); float s = aA.z * uD * (aB.w > 2.5 && aB.w < 3.5 ? 1. : aB.w > 4.5 ? 1.6 : 3.2); gl_PointSize = min(s, uMx); vS = s; vC = vec4(aB.rgb, aA.w * min(1., s / max(1., gl_PointSize)) ); vK = aB.w; }`;
+  const PFS = `#version 300 es
+  precision mediump float; in vec4 vC; flat in float vK; in float vS; out vec4 o;
+  void main(){ vec2 q = gl_PointCoord * 2. - 1.; float d = dot(q, q), a;
+    if (vK < .5) a = exp(-d * 9.);                                   // dust: a tiny soft speck
+    else if (vK < 1.5) a = exp(-d * 12.) + .12 * exp(-d * 3.);        // pollen: a bright grain with a faint halo
+    else if (vK < 2.5) a = exp(-d * 16.) * 1.2 + .3 * exp(-d * 3.5);  // spore: a glowing core in a soft glow
+    else if (vK < 3.5) a = smoothstep(1., .82, sqrt(d)) * (.75 + .25 * smoothstep(.5, .95, sqrt(d)));      // close to the eye: an out-of-focus disc
+    else if (vK < 4.5) { float r = abs(q.x * q.y); a = exp(-d * 14.) + .5 * exp(-r * 260.) * exp(-d * 2.5); }
+    else a = smoothstep(1., .5, length(q * vec2(1.6, 1.)));      // seed: a small solid grain          // twinkle: a speck with a faint cross of light
+    a *= vC.a; if (a < .002) discard; o = vec4(vC.rgb * a, a * (vK > 4.5 ? 1. : .8)); }`;
+  const pp = gl.createProgram(); gl.attachShader(pp, sh(gl.VERTEX_SHADER, PVS)); gl.attachShader(pp, sh(gl.FRAGMENT_SHADER, PFS)); gl.linkProgram(pp); if (!gl.getProgramParameter(pp, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(pp));
+  X.pp = { p: pp, uG: gl.getUniformLocation(pp, 'uG'), uD: gl.getUniformLocation(pp, 'uD'), uMx: gl.getUniformLocation(pp, 'uMx') }; X.pmax = gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE)[1] || 64;
+  X.vao = gl.createVertexArray(); gl.bindVertexArray(X.vao); X.pb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, X.pb); gl.bufferData(gl.ARRAY_BUFFER, PV.byteLength, gl.DYNAMIC_DRAW);
+  gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 32, 0); gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 32, 16); gl.bindVertexArray(null); gl.bindBuffer(gl.ARRAY_BUFFER, vb);
+  return X;
+}
+try { GLX = glSetup(); } catch (e) { GLX = null; }
+if (GLX) stage.classList.add('gl');
+let camX = 0, camY = 0, camR = 0; let calmK = 1;
+function glRender(dt) {
+  const X = GLX, gl = X.gl, draw = !window.__noDraw, vw = Math.round(W * DPR), vh = Math.round(H * DPR);
+  if (view.width !== vw || view.height !== vh) { view.width = vw; view.height = vh; for (const l of LAYERS) l.d = 1; }
+  // the viewport camera drifts and turns very slowly, all the time; the pointer nudges it a little
+  camX = Math.sin(vtime * .05) * .8 + Math.sin(vtime * .021 + 1.3) * .4 + parX * .5; camY = Math.cos(vtime * .041) * .7 + parY * .4; camR = Math.sin(vtime * .027) * .014 + Math.sin(vtime * .011 + 2.) * .008; calmK += ((window.__calm ? 0 : 1) - calmK) * Math.min(1, dt * .6); camX *= calmK; camY *= calmK; camR *= calmK;
+  windStep(dt);
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, X.tex[0]); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, bgCv);
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false); gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+  const common = pr => { gl.useProgram(pr.p); gl.uniform2f(pr.u.uRes, vw, vh); gl.uniform1f(pr.u.uT, vtime); gl.uniform3f(pr.u.uCam, camX, camY, camR); gl.uniform1i(pr.u.uE, 5); };
+  if (!draw) return;
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+  for (let i = 0; i < 4; i++) { const l = LAYERS[i]; if (l.d || !l.up) { gl.activeTexture(gl.TEXTURE1 + i); gl.bindTexture(gl.TEXTURE_2D, X.tex[1 + i]); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, l.cv);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true); l.d = 0; l.up = 1; } }
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+  for (let i = 0; i < 4; i++) { gl.activeTexture(gl.TEXTURE1 + i); gl.bindTexture(gl.TEXTURE_2D, X.tex[1 + i]); gl.activeTexture(gl.TEXTURE7 + i); gl.bindTexture(gl.TEXTURE_2D, X.atex[i]); }
+  gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, X.tex[6]);
+  life.draw(); gl.activeTexture(gl.TEXTURE11); gl.bindTexture(gl.TEXTURE_2D, X.ltex); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, liveCv); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+  gl.activeTexture(gl.TEXTURE12); gl.bindTexture(gl.TEXTURE_2D, X.ptex);
+  if (X.fw !== vw || X.fh !== vh) { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, vw, vh, 0, gl.RGBA, gl.UNSIGNED_BYTE, null); X.fw = vw; X.fh = vh; }
+  gl.bindTexture(gl.TEXTURE_2D, null); gl.bindFramebuffer(gl.FRAMEBUFFER, X.fbo); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, X.ptex, 0);
+  gl.viewport(0, 0, vw, vh); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+  packP(); if (pCount) { gl.useProgram(X.pp.p); gl.uniform2f(X.pp.uG, W, H); gl.uniform1f(X.pp.uD, DPR); gl.uniform1f(X.pp.uMx, X.pmax); gl.bindVertexArray(X.vao); gl.bindBuffer(gl.ARRAY_BUFFER, X.pb); gl.bufferSubData(gl.ARRAY_BUFFER, 0, PV, 0, pCount * 8);
+    gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.drawArrays(gl.POINTS, 0, pCount); gl.disable(gl.BLEND); gl.bindVertexArray(null); }
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.activeTexture(gl.TEXTURE12); gl.bindTexture(gl.TEXTURE_2D, X.ptex);
+  gl.viewport(0, 0, vw, vh); common(X.comp); const u = X.comp.u; gl.uniform1i(u.uLv, 11); gl.uniform1i(u.uPt, 12);
+  gl.uniform1i(u.uBg, 0); gl.uniform1i(u.uL0, 1); gl.uniform1i(u.uL1, 2); gl.uniform1i(u.uL2, 3); gl.uniform1i(u.uL3, 4); gl.uniform1i(u.uGlyph, 6); gl.uniform1i(u.uA0, 7); gl.uniform1i(u.uA1, 8); gl.uniform1i(u.uA2, 9); gl.uniform1i(u.uA3, 10); gl.uniform2f(u.uSp, SPAN / W, SPAN / H);
+  { const bk = .3 + .7 * calmK; gl.uniform4f(u.uBlur, 2.8 * U * DPR * bk, .5 * U * DPR * bk, 0, 8 * U * DPR * bk); } gl.uniform1i(u.uLook, look); gl.uniform1f(u.uTidy, life.tidy);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+/* ───────────── looks: the same garden, rendered in another way. Normal is the default ───────────── */
+{ const opts = [['Wild', null], ['Grid', 'grid'], ['Rows', 'rows'], ['Line', 'line']], bs = [];
+  const ob = document.createElement('button'); ob.type = 'button'; ob.className = 'mini';
+  const upd = () => { bs.forEach((b, i) => b.classList.toggle('active', opts[i][1] === life.arr)); ob.textContent = 'by ' + life.ORD[life.order].toLowerCase(); ob.style.display = life.arr ? '' : 'none'; };
+  opts.forEach(([n, v]) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = n; b.title = v ? 'Set the living plants out in ' + (v === 'grid' ? 'a grid' : v === 'line' ? 'a line' : 'two rows') + ' (G)' : 'Let the garden grow wild again (G)'; b.addEventListener('click', () => life.setArr(v)); $('gArr').appendChild(b); bs.push(b); });
+  ob.title = 'Order: colour, size, kind or height (O)'; ob.addEventListener('click', () => { life.order = (life.order + 1) % life.ORD.length; if (life.arr) life.setArr(life.arr); upd(); }); $('gArr').appendChild(ob);
+  life.ui = upd; upd(); }
+const LOOKS = ['Normal', 'ASCII', 'Space', 'Underwater', 'Botanical', 'VHS', 'Riso', 'Watercolour', 'Pixel'], LORD = [0, 2, 3, 4, 5, 6, 7, 8, 1], lookBtns = []; let look = 0;
+// the logo takes a brand colour pair that suits each look: [mark, tile]
+const LOGO = [['#ff6446', '#f2f2f2'], ['#8fe3cf', '#10131a'], ['#b2cbff', '#3c2da0'], ['#ff6446', '#b2cbff'], ['#3c2da0', '#f4efe3'], ['#f2e291', '#1b1230'], ['#ff6446', '#f2e291'], ['#ff6446', '#f4efe3'], ['#f2f2f2', '#3c2da0']];
+function setLook(i) { look = i; lookBtns.forEach(b => b.classList.toggle('active', +b.dataset.i === i)); const lg = $('logo'), c = LOGO[i] || LOGO[0]; if (lg) { lg.style.color = c[0]; lg.style.background = c[1]; } }
+if (GLX) { LORD.forEach(i => { const n = LOOKS[i], b = document.createElement('button'); b.type = 'button'; b.textContent = n; b.dataset.i = i; b.title = n + ' (L to cycle)'; if (i === 1 || i === 8) b.className = 'mini'; b.addEventListener('click', () => setLook(look === i && b.className === 'mini' ? 0 : i)); $('gLook').appendChild(b); lookBtns.push(b); }); setLook(0); }
+else { $('gLook').style.display = 'none'; }
+
+/* ───────────── input: pointer ───────────── */
+const ptr = { x: 0, y: 0, px: 0, py: 0, has: false, glow: 0, seen: -99, ax: 0, ay: 0, vx: 0, vy: 0, sx: 0, sy: 0, out: false };
+let parX = 0, parY = 0, parTX = 0, parTY = 0, parVX = 0, parVY = 0;
+function local(e) { const r = stage.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+stage.addEventListener('pointermove', e => {
+  const [x, y] = local(e);
+  if (!ptr.has) { ptr.has = true; ptr.px = ptr.sx = x; ptr.py = ptr.sy = y; }
+  const mdx = x - ptr.px, mdy = y - ptr.py, d = Math.hypot(mdx, mdy);
+  ptr.x = x; ptr.y = y; ptr.px = x; ptr.py = y; ptr.glow = 1; ptr.seen = vtime; ptr.out = !!e.target.closest('#bar');
+  // the movement is only collected here; ptrStep() turns it into a smoothed breeze once per frame, so fast or jerky hands stay gentle
+  if (d > 0 && d < 200 * U && !ptr.out) { ptr.ax += mdx; ptr.ay += mdy; deposit(x, y, Math.min(.3, d / (150 * U)), false); if (rnd() < Math.min(1, d / (25 * U))) addDust(x + R(-12, 12) * U, y + R(-12, 12) * U, curP().hues[curP().act[0]]); }
+  parTX = x / W * 2 - 1; parTY = y / H * 2 - 1;
+  showBar();
+});
+stage.addEventListener('pointerdown', e => {
+  if (e.target.closest('#bar')) return;
+  const [x, y] = local(e); ptr.x = ptr.px = x; ptr.y = ptr.py = y; ptr.has = true; ptr.glow = 1;
+  deposit(x, y, .5); sprouts(x, y); selfClick = Math.max(selfClick, 12);
+});
+stage.addEventListener('contextmenu', e => e.preventDefault());
+stage.addEventListener('pointerleave', () => { ptr.ax = ptr.ay = 0; });
+// the pointer as a low-passed velocity at a trailing position: eases in when the hand starts, eases out when it stops, capped so a flick is still a breath
+function ptrStep(dt) {
+  if (!dt || !ptr.has) return; dt = Math.min(dt, .05);
+  const k = 1 - Math.exp(-dt * 5), kp = 1 - Math.exp(-dt * 7);
+  ptr.vx += (ptr.ax / dt - ptr.vx) * k; ptr.vy += (ptr.ay / dt - ptr.vy) * k; ptr.ax = ptr.ay = 0;
+  const vm = 1400 * U, sp0 = Math.hypot(ptr.vx, ptr.vy); if (sp0 > vm) { ptr.vx *= vm / sp0; ptr.vy *= vm / sp0; }
+  ptr.sx += (ptr.x - ptr.sx) * kp; ptr.sy += (ptr.y - ptr.sy) * kp;
+  const sp = Math.hypot(ptr.vx, ptr.vy); if (sp < 6 * U || ptr.out) return;
+  const g = Math.min(1, sp / (700 * U));
+  windAt(ptr.sx, ptr.sy, ptr.vx, ptr.vy, g * g * dt * 3, 2.4);
+  if (ptrImp.length < 120) ptrImp.push(ptr.sx, ptr.sy, clamp(ptr.vx * dt, -24 * U, 24 * U), clamp(ptr.vy * dt, -24 * U, 24 * U));
+}
+
+/* ───────────── input: webcam motion ───────────── */
+const video = $('video'), camCv = $('camview'), camCtx = camCv.getContext('2d', { willReadFrequently: true });
+const MW = 64, MH = 36, prev = new Float32Array(MW * MH);
+const cam = { on: false, stream: null, acc: 0, primed: false, level: 0, dx: 1, dy: 0, tdx: 1, tdy: 0, cx: .5, cy: .5 };
+const camT = new Float32Array(GW * GH), camS = new Float32Array(GW * GH);
+async function startCam() {
+  if (cam.on) return;
+  if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toast('This browser does not offer the camera to this page. Open the file in Chrome (not inside the artifact viewer)', 12000); return; }
+  toast('Asking for the camera: click Allow in the browser', 8000);
+  try {
+    cam.stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 360 }, facingMode: 'user' }, audio: false });
+    video.srcObject = cam.stream; await video.play();
+    cam.on = true; cam.primed = false; $('bCam').classList.add('active'); setOverlay(true); toast('Camera on: your movement stirs the drifting spores. V shows or hides the camera image');
+  } catch (err) {
+    cam.on = false; $('bCam').classList.remove('active'); const n = err && err.name;
+    toast(n === 'NotAllowedError' || n === 'SecurityError' ? 'Camera blocked. In Chrome click the camera icon in the address bar and choose Allow. On the Mac also check System Settings > Privacy & Security > Camera: Google Chrome on, then restart Chrome'
+      : n === 'NotFoundError' || n === 'OverconstrainedError' ? 'No camera found on this computer'
+      : n === 'NotSupportedError' ? 'This page is not allowed to use the camera here. Open the file directly in Chrome (file:///Users/whoislewis/Sites/Generative%20Garden.html), not inside the artifact viewer'
+      : n === 'NotReadableError' ? 'The camera is in use by another app (Zoom, FaceTime, Teams?). Close it and press C again'
+      : 'The camera did not start (' + (n || 'unknown error') + '). Press C to try again', 16000);
+  }
+}
+function stopCam() { if (cam.stream) cam.stream.getTracks().forEach(t => t.stop()); cam.stream = null; cam.on = false; $('bCam').classList.remove('active'); setOverlay(false); toast('Camera off'); }
+function setOverlay(on) { video.classList.toggle('on', on && cam.on); $('bView').classList.toggle('active', on && cam.on); $('meter').classList.toggle('on', cam.on); }      // the movement meter shows whenever the camera is on, image or not
+function camTick() {
+  if (video.readyState < 2) return;
+  camCtx.save(); camCtx.setTransform(-1, 0, 0, 1, MW, 0); camCtx.drawImage(video, 0, 0, MW, MH); camCtx.restore();
+  const img = camCtx.getImageData(0, 0, MW, MH), d = img.data, hits = [];
+  let sx = 0, sy = 0;
+  for (let i = 0, n = MW * MH; i < n; i++) { const lum = d[i * 4] * .3 + d[i * 4 + 1] * .59 + d[i * 4 + 2] * .11, df = Math.abs(lum - prev[i]); prev[i] = prev[i] * .45 + lum * .55; if (df > 13) hits.push(i); }
+  if (!cam.primed) { cam.primed = true; return; }
+  cam.level += (Math.min(1, hits.length / (MW * MH * .12)) - cam.level) * .35; $('meterBar').style.width = (cam.level * 100).toFixed(0) + '%';
+  camT.fill(0);
+  if (hits.length > MW * MH * .55) return;            // exposure jump or lights switched: ignore
+  // movement only sways the garden where it happens; it plants nothing
+  const amt = .3 / Math.sqrt(1 + hits.length / 30), c = curP().hues[curP().act[0]], cw = W / MW, ch = H / MH, show = video.classList.contains('on'), stepN = Math.max(1, Math.ceil(hits.length / 120)), r = Math.max(cw, ch) * 2.4;
+  // which way the movement is heading: where its centre went since the last look
+  { let mx = 0, my = 0; for (let q = 0; q < hits.length; q++) { mx += hits[q] % MW; my += (hits[q] / MW) | 0; }
+    if (hits.length > 3) { mx = mx / hits.length * cw; my = my / hits.length * ch; const ddx = mx - (cam.mx === undefined ? mx : cam.mx), ddy = my - (cam.my === undefined ? my : cam.my); cam.mx = mx; cam.my = my;
+      if (Math.hypot(ddx, ddy) > .012 * W) { const l = Math.hypot(ddx, ddy); cam.tdx = ddx / l; cam.tdy = ddy / l * .5; } } }
+  const per = (MW * MH) / (GW * GH);
+  for (let q = 0; q < hits.length; q++) { const i = hits[q], x = (i % MW + .5) * cw, y = (((i / MW) | 0) + .5) * ch; const gi = clamp((x / W * GW) | 0, 0, GW - 1), gj = clamp((y / H * GH) | 0, 0, GH - 1); camT[gj * GW + gi] = Math.min(1, camT[gj * GW + gi] + 1 / per); sx += x; sy += y; if (rnd() < .04) addMote(x + R(-cw, cw), y + R(-ch, ch), c, LAYERS[2]); if (rnd() < .22) addDust(x + R(-cw, cw), y + R(-ch, ch), c); if (q % stepN === 0) deposit(x, y, .05 * stepN, false);
+    if (show && q % stepN === 0) { const g = fx.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, `hsla(${c[0]},60%,88%,.05)`); g.addColorStop(1, `hsla(${c[0]},60%,88%,0)`); fx.fillStyle = g; fx.fillRect(x - r, y - r, r * 2, r * 2); } }
+  if (hits.length > 3) { cam.cx += (sx / hits.length / W - cam.cx) * .15; cam.cy += (sy / hits.length / H - cam.cy) * .15; parTX = (cam.cx * 2 - 1) * .6; parTY = (cam.cy * 2 - 1) * .6; }
+}
+// once per frame: the motion map fades toward the latest look (in about half a second), the direction turns slowly, and only then does it stir the air
+function camStep(dt) {
+  if (!cam.on || !dt) return; dt = Math.min(dt, .05);
+  const k = 1 - Math.exp(-dt * 2.2), kd = 1 - Math.exp(-dt * 1.2);
+  cam.dx += (cam.tdx - cam.dx) * kd; cam.dy += (cam.tdy - cam.dy) * kd; const l = Math.hypot(cam.dx, cam.dy) || 1; swayDir[0] = cam.dx / l; swayDir[1] = cam.dy / l;
+  let busy = 0; for (let i = 0; i < camS.length; i++) { camS[i] += (camT[i] - camS[i]) * k; if (camS[i] > .02) busy++; }
+  const amt = dt * 1.1 / Math.sqrt(1 + busy / 25), imp = 6 * U * dt * 60 / Math.sqrt(1 + busy / 25);
+  for (let id = 0; id < camS.length; id++) { const m = camS[id]; if (m < .02) continue; const x = (id % GW + .5) / GW * W, y = (((id / GW) | 0) + .5) / GH * H, s = Math.min(1, m * 1.6);
+    windAt(x, y, swayDir[0], swayDir[1], s * amt, 1.6); if (ptrImp.length < 160 && rnd() < .5) ptrImp.push(x, y, swayDir[0] * s * imp, swayDir[1] * s * imp); }
+}
+
+/* ───────────── controls ───────────── */
+const bar = $('bar'), toastEl = $('toast'); let barT = 0, toastT = 0;
+function showBar() { bar.classList.add('on'); stage.classList.add('ui'); clearTimeout(barT); barT = setTimeout(() => { bar.classList.remove('on'); stage.classList.remove('ui'); }, 3000); }
+function toast(msg, ms = 4200) { toastEl.textContent = msg; toastEl.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove('on'), ms); }
+function fullscreen() {
+  try {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else { const p = stage.requestFullscreen ? stage.requestFullscreen() : (stage.webkitRequestFullscreen && stage.webkitRequestFullscreen()); if (p && p.catch) p.catch(() => toast('Fullscreen is blocked here: open the page in its own tab')); }
+  } catch (e) { toast('Fullscreen is blocked here: open the page in its own tab'); }
+}
+function clearAll() { BAT.clear(); for (const l of LAYERS) { l.ctx.save(); l.ctx.setTransform(1, 0, 0, 1, 0, 0); l.ctx.clearRect(0, 0, l.cv.width, l.cv.height); l.ctx.restore(); l.actx.save(); l.actx.setTransform(1, 0, 0, 1, 0, 0); l.actx.clearRect(0, 0, l.av.width, l.av.height); l.actx.restore(); l.occ.fill(0); l.d = 1; } tips.length = beads.length = procs.length = 0; nodes.length = 0; E.fill(0); Q.fill(0); }
+const styleBtns = [], colBtns = [];
+function mark() { styleBtns.forEach((b, i) => b.classList.toggle('active', i === sIdx)); colBtns.forEach((b, i) => b.classList.toggle('active', i < PALETTES.length ? (!drift && i === pIdx) : drift)); }
+function setPalette(i, keepDrift) { if (!keepDrift) { bgSlow = false; if (style === seasons) seasons.lockPal = true; } palVer++; rollAct(PALETTES[i], i === pIdx && !keepDrift ? null : PREF[i]); pIdx = i; if (!keepDrift) drift = false; mark(); }
+function setStyle(i) { seasons.lockPal = false; bgSlow = false; season.reset(); micro.reset(); selfClick = R(10, 18); sIdx = i; style = STYLES[i]; clearAll(); if (!drift) pIdx = style.pal; palVer++; rollAct(curP(), PREF[pIdx]); style.init(); life.reset(); pCount = 0; decays.length = 0; for (const l of LAYERS) l.ag.fill(0); mark(); }
+STYLES.forEach((s, i) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = s.name; b.title = s.name + ' (' + (i + 1) + ')'; b.addEventListener('click', () => setStyle(i)); $('gStyle').appendChild(b); styleBtns.push(b); });
+PALETTES.forEach((p, i) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'sw'; b.style.background = p.sw; b.title = p.name; b.setAttribute('aria-label', p.name + ' colours'); b.addEventListener('click', () => setPalette(i)); $('gCol').appendChild(b); colBtns.push(b); });
+{ const b = document.createElement('button'); b.type = 'button'; b.textContent = 'Drift'; b.title = 'Slowly cycle through all colours'; b.addEventListener('click', () => { drift = !drift; driftT = 0; mark(); }); $('gCol').appendChild(b); colBtns.push(b); }
+function savePng() {
+  try {
+    const c = document.createElement('canvas'); c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); const k = c.getContext('2d');
+    k.imageSmoothingQuality = 'high'; if (GLX) k.drawImage(view, 0, 0, c.width, c.height); else { k.drawImage(bgCv, 0, 0, c.width, c.height);
+    for (const l of LAYERS) { k.filter = l.blur ? `blur(${l.blur * U * DPR}px)` : 'none'; k.drawImage(l.cv, 0, 0, c.width, c.height); }
+    k.filter = 'none'; }
+    c.toBlob(b => { const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'Garden ' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.png'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); });
+  } catch (e) {}
+}
+$('bCam').addEventListener('click', () => cam.on ? stopCam() : startCam());
+$('bView').addEventListener('click', () => { if (cam.on) setOverlay(!video.classList.contains('on')); else toast('Turn the camera on first'); });
+$('bFull').addEventListener('click', fullscreen);
+$('bClear').addEventListener('click', () => setStyle(sIdx));
+// growth speed: only the garden's clock changes; the view (camera drift, breathing, fog) always runs in real time
+const SPEEDS = [.5, 1, 2, 4, 8], spdBtns = []; let spd = 1;
+function setSpeed(v) { spd = v; spdBtns.forEach((b, i) => b.classList.toggle('active', SPEEDS[i] === v)); }
+SPEEDS.forEach(v => { const b = document.createElement('button'); b.type = 'button'; b.textContent = (v === .5 ? '0.5' : v) + '×'; b.title = 'Growth speed ' + b.textContent + ' ([ and ])'; b.addEventListener('click', () => { setSpeed(v); toast('Growth speed ' + b.textContent); }); $('gSpd').appendChild(b); spdBtns.push(b); });
+setSpeed(1);
+addEventListener('keydown', e => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = e.key.toLowerCase();
+  if (k === 'f') fullscreen();
+  else if (k === 'c') cam.on ? stopCam() : startCam();
+  else if (k === 'v') { if (cam.on) setOverlay(!video.classList.contains('on')); else toast('Turn the camera on first (C)'); }
+  else if (k === 'n') { setPalette((pIdx + 1) % PALETTES.length); toast('Colour: ' + curP().name); }
+  else if (k === 'x') setStyle(sIdx);
+  else if (k === 'g') { const seq = [null, 'grid', 'rows', 'line'], i = seq.indexOf(life.arr); life.setArr(seq[(i + 1) % seq.length]); toast('Garden: ' + (life.arr || 'wild')); }
+  else if (k === 'o' && life.arr) { life.order = (life.order + 1) % life.ORD.length; life.setArr(life.arr); toast('Order: ' + life.ORD[life.order]); }
+  else if (k === 'l' && GLX) { setLook(LORD[(LORD.indexOf(look) + 1) % LORD.length]); toast('Look: ' + LOOKS[look]); }
+  else if (k === '[' || k === ']') { const i = clamp(SPEEDS.indexOf(spd) + (k === ']' ? 1 : -1), 0, SPEEDS.length - 1); setSpeed(SPEEDS[i]); toast('Growth speed ' + spdBtns[i].textContent); }
+  else if (k === 's') savePng();
+  else if (k >= '1' && k <= String(STYLES.length)) { setStyle(+k - 1); toast('Garden: ' + style.name); }
+});
+
+// the window changed size: what has grown stays where it is (anchored to the ground), and new growth fills the new space
+function onResized(dx, dy) {
+  if (!style) return;
+  for (const b of life.list) { b.x += dx; b.y += dy; } for (const p of life.petals) { p.x += dx; p.y += dy; p.floor += dy; }
+  if (style === terrain) { setStyle(sIdx); return; }
+  for (const t of tips) { t.x += dx; t.y += dy; if (t.gx !== undefined) { t.gx += dx; t.gy += dy; } if (t.hq) for (let i = 0; i < t.hq.length; i += 4) { t.hq[i] += dx; t.hq[i + 1] += dy; } if (t.path && !t.path.moved) { t.path.moved = 1; for (const p of t.path) { p[0] += dx; p[1] += dy; } } }
+  for (const t of tips) if (t.path) t.path.moved = 0;
+  for (const b of beads) { b.x += dx; b.y += dy; }
+  for (const n of nodes) { n.x += dx; n.y += dy; }
+  for (const l of LAYERS) l.occ.fill(0);
+  if (style === vines) { const keep = vines.open; vines.init(); vines.open = Math.max(keep, 6); } else if (style.open !== undefined) style.open = Math.max(style.open, 6);
+}
+
+/* ───────────── main loop ───────────── */
+let frameN = 0, selfClick = 14;
+function step(dt, vdt = dt) {
+  time += dt; frameN++; if (!window.__noDraw) vtime += vdt;
+  if (drift) { driftT += dt; if (driftT > 300) { driftT = 0; setPalette((pIdx + 1) % PALETTES.length, true); } }
+
+  // energy: where there is movement, growth speeds up and new growth takes root
+  const de = Math.exp(-dt * 1.4), dq = Math.exp(-dt * .3); let sum = 0, bi = -1, bq = 1;
+  ecol.fill(0);
+  for (let i = 0; i < E.length; i++) { E[i] *= de; Q[i] *= dq; sum += E[i]; const c = i % GW; if (E[i] > ecol[c]) ecol[c] = E[i]; if (Q[i] > bq) { bq = Q[i]; bi = i; } }
+  atCool -= dt;
+  if (bi >= 0 && atCool <= 0) {
+    const ci = bi % GW, cj = (bi / GW) | 0;
+    const ax = (ci + rnd()) / GW * W, ay = (cj + rnd()) / GH * H;
+    style.at(ax, ay);
+    for (let j = Math.max(0, cj - 4); j <= Math.min(GH - 1, cj + 4); j++) for (let k = Math.max(0, ci - 4); k <= Math.min(GW - 1, ci + 4); k++) Q[j * GW + k] *= .12;
+    atCool = .55;
+  }
+  eg += (Math.min(1, sum / (E.length * .07)) - eg) * Math.min(1, dt * 1.2);
+
+  season.update(dt);
+  if (!life.arr) style.auto(dt);
+  micro.update(dt);
+  if (!life.arr) runners(dt);
+  // now and then the garden does by itself what a click does
+  selfClick -= dt; if (selfClick <= 0 && !life.arr) { selfClick = R(14, 32); sprouts(R(.12, .88) * W, R(.2, .78) * H); }
+  if (cam.on) { cam.acc += vdt; if (cam.acc > 1 / 15) { cam.acc = 0; camTick(); } }
+  ptrStep(vdt); camStep(vdt);
+
+  fx.globalCompositeOperation = 'destination-out'; fx.fillStyle = cam.on ? 'rgba(0,0,0,.12)' : 'rgba(0,0,0,.3)'; fx.fillRect(0, 0, W, H); fx.globalCompositeOperation = 'source-over';
+  runProcs(dt); runTips(dt); runBeads(dt); mist(dt); life.update(dt); if (!window.__noDraw) { fairy(dt); runMotes(dt); runDust(dt); if (GLX) runP(vdt); }
+
+  if (ptr.has && ptr.glow > 0.01) {
+    ptr.glow *= Math.exp(-dt * 1.2);
+    const r = 46 * U, g = fx.createRadialGradient(ptr.x, ptr.y, 0, ptr.x, ptr.y, r);
+    g.addColorStop(0, `rgba(255,250,235,${.2 * ptr.glow})`); g.addColorStop(.12, `rgba(255,240,220,${.07 * ptr.glow})`); g.addColorStop(1, 'rgba(255,240,220,0)');
+    fx.fillStyle = g; fx.beginPath(); fx.arc(ptr.x, ptr.y, r, 0, TAU); fx.fill();
+  }
+
+  if (frameN % 2 === 0) drawBg(dt * 2, window.__noDraw);
+
+  if (!window.__noDraw) {
+    if (!cam.on && vtime - ptr.seen > 6) { parTX = Math.sin(vtime * .07) * .5; parTY = Math.cos(vtime * .05) * .4; }
+    const pd = Math.min(vdt, .05), w0 = 1.3; parVX += ((parTX - parX) * w0 * w0 - 2 * w0 * parVX) * pd; parVY += ((parTY - parY) * w0 * w0 - 2 * w0 * parVY) * pd; parX += parVX * pd; parY += parVY * pd;
+  }
+  if (window.__noDraw) { if (GLX && vdt) windStep(dt); } else if (GLX) glRender(vdt); else for (const l of LAYERS) l.cv.style.transform = `translate(${(parX * l.par * U * .5).toFixed(2)}px,${(parY * l.par * U * .3).toFixed(2)}px)`;
+}
+
+let last = 0, slow = 16;
+function frame(now) {
+  const raw = now - last; last = now;
+  if (raw < 200) { slow += (raw - slow) * .05; if (slow > 24) gov = Math.max(.3, gov * .985); else if (slow < 19) gov = Math.min(1, gov * 1.01); }
+  const d = clamp(raw / 1000, .001, .05);
+  if (spd < 1) step(d * spd, d);
+  else { window.__noDraw = true; if (spd >= 8) FF = 1; try { for (let i = 1; i < spd; i++) step(d, 0); } finally { if (FF) batAll(); FF = 0; window.__noDraw = false; } step(d); }      // 8x: the steps in between use the coarser fast-forward drawing      // faster: extra garden steps without drawing in between
+  requestAnimationFrame(frame);
+}
+
+resize();
+{ let s0 = 0; try { const q = new URLSearchParams(location.search); if (q.get('style')) s0 = clamp((+q.get('style') | 0) - 1, 0, STYLES.length - 1); if (q.get('cam') === '1') startCam(); if (q.get('look') && GLX) setLook(clamp(+q.get('look') | 0, 0, LOOKS.length - 1)); } catch (e) {} setStyle(s0); }
+bgTop = curP().top.slice(); bgBot = curP().bot.slice(); drawBg(0);
+window.__garden = { season, windAt, windDbg: () => { let m = 0, sx = 0, sw = 0; for (let i = 0; i < WX.length; i++) { const l = Math.hypot(WX[i], WY[i]); if (l > m) m = l; sx += (i % GW) * l; sw += l; } return [+m.toFixed(3), sw ? +(sx / sw / GW).toFixed(3) : null, +sw.toFixed(2)]; }, dbg: () => JSON.stringify({ act: curP().act, name: curP().name, pIdx, s: [0,1,2,3,4,5].map(() => palette()[0][0] | 0) }), step, deposit, sprouts, setStyle, setPalette, startCam, state: () => ({ style: style.name, inner: style.cur ? style.cur.name + (style.prev ? ' < ' + style.prev.name : '') : null, pal: curP().name, tips: tips.length, beads: beads.length, procs: procs.length, gov, eg }) };
+requestAnimationFrame(t => { last = t; requestAnimationFrame(frame); });
+setTimeout(() => { if (!cam.on) toast('Move to make it grow, click to sprout. Move the mouse for controls'); }, 1500);
+})();
+</script>
+</body>
+</html>

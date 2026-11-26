@@ -31,6 +31,7 @@
        padding:14px 18px 14px 14px;border-radius:18px;background:rgba(14,10,28,.58);backdrop-filter:blur(18px) saturate(1.2);-webkit-backdrop-filter:blur(18px) saturate(1.2);
        box-shadow:0 10px 40px rgba(0,0,0,.28),inset 0 0 0 1px rgba(255,255,255,.08);opacity:0;pointer-events:none;transition:opacity .5s;cursor:default;color:#fff;font-size:12.5px}
   #bar.on{opacity:1;pointer-events:auto}
+  #bar{touch-action:pan-y;overscroll-behavior:contain}
   #logo{align-self:start;width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:#f2f2f2;color:#ff6446;overflow:hidden;transition:background .8s,color .8s}
   #logo svg{width:28px;height:28px;display:block}
   #bar .rows{display:flex;flex-direction:column;gap:7px}
@@ -50,7 +51,24 @@
   #bar .acts button{opacity:.75;font-size:12px}
   #bar #gSpd .lbl{min-width:0}
   #bar #gLook,#bar #gStyle{flex-wrap:nowrap}
-  @media (max-width:720px){ #bar{grid-template-columns:1fr} #logo{display:none} }
+  #bar #barX{all:unset;position:absolute;right:8px;top:8px;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:.7;font-size:18px;line-height:1;color:#fff}
+  #bar #barX:hover{opacity:1;background:rgba(255,255,255,.14)}
+  #menuB{all:unset;position:absolute;right:14px;bottom:14px;width:44px;height:44px;border-radius:50%;display:none;align-items:center;justify-content:center;cursor:pointer;color:#fff;
+       background:rgba(14,10,28,.42);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);opacity:.75;transition:opacity .4s}
+  #menuB svg{width:20px;height:20px}
+  #stage.touch #menuB{display:flex}
+  #stage.touch #bar.on ~ #menuB{opacity:0;pointer-events:none}
+  @media (max-width:720px){
+    #bar{left:8px;right:8px;bottom:8px;transform:none;max-width:none;grid-template-columns:1fr;padding:44px 12px 12px;max-height:72vh;overflow-y:auto;-webkit-overflow-scrolling:touch;font-size:13px}
+    #logo{position:absolute;left:12px;top:8px;width:30px;height:30px;border-radius:8px}
+    #logo svg{width:19px;height:19px}
+    #bar .row{gap:8px 14px}
+    #bar .grp{flex-wrap:wrap !important}
+    #bar .lbl{min-width:0;width:100%;margin:2px 0 2px 4px}
+    #bar #gSpd .lbl{width:auto}
+    #bar button{padding:8px 12px}
+    #bar button.sw{width:26px;height:26px}
+  }
   #toast{position:absolute;left:50%;top:24px;transform:translateX(-50%);color:#fff;font-size:13px;padding:9px 16px;border-radius:999px;max-width:90vw;
        background:rgba(18,12,34,.55);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);opacity:0;transition:opacity .6s;pointer-events:none;text-align:center}
   #toast.on{opacity:1}
@@ -80,6 +98,7 @@
   <div id="meter">Movement <i><b id="meterBar"></b></i></div>
   <div id="toast" role="status"></div>
   <div id="bar">
+    <button id="barX" type="button" title="Hide the menu" aria-label="Hide the menu">&times;</button>
     <div id="logo" title="Ainigma"><svg viewBox="0 0 1200 1200" aria-label="Ainigma" role="img"><path fill="currentColor" d="M842.18,520.17c-41.01,300.46-290.23,528.58-290.23,528.58v145.19h399.28v-673.77h-109.05Z"/><path fill="currentColor" d="M795.04,520.17c-6.14-59.64-29.01-107.92-69.66-137-117.24-83.78-337.59,23.64-492.23,239.98-154.71,216.33-184.99,459.62-67.76,543.4,92.39,65.99,248.73,13.27,386.57-117.87v-520.75c0-4.31,3.46-7.76,7.76-7.76h235.32Z"/><path fill="currentColor" d="M951.23,5c85.47,0,154.78,69.31,154.78,154.78s-69.31,154.78-154.78,154.78-154.78-69.31-154.78-154.78S865.76,5,951.23,5"/></svg></div>
     <div class="rows">
       <div class="row"><div class="grp" id="gStyle"><span class="lbl">Scene</span></div></div>
@@ -94,6 +113,7 @@
       </div>
     </div>
   </div>
+  <button id="menuB" type="button" title="Menu" aria-label="Show the menu"><svg viewBox="0 0 20 20" fill="currentColor"><circle cx="4" cy="10" r="1.8"/><circle cx="10" cy="10" r="1.8"/><circle cx="16" cy="10" r="1.8"/></svg></button>
 </div>
 
 <script>
@@ -744,6 +764,8 @@ function strand(rd, x) {
   pts.reverse();                                        // the strand rises from the fold to its tip
   const dark = 13 * noise(x / U * .016 + rd.seed * 3, y0 / U * .006) + R(-7, 7);
   const pen = orgPen(pen0, pts[0][0], pts[0][1], 0, Math.floor(x / (70 * U)) * 17 + rd.i * 7);
+  // now and then a live blade rises from the crest as well: drawn every frame, it is what leans when something moves
+  if (rd.layer === LAYERS[2] && rnd() < .085) { const top = pts[pts.length - 1], up = pts[pts.length - 1][1] - pts[Math.max(0, pts.length - 12)][1]; blades.add(top[0] + R(-2, 2) * u, rd.y(top[0]) + R(3, 10) * u, -PI / 2 + rd.lean * .7 + jit * .8, R(26, 72) * u, R(1.6, 2.4) * u, [c2[0], c2[1], c2[2] - 8], lite(c1, 10), { dot: powder ? rd.fr : rnd() < .4 ? c1 : null, delay: R(0, 4) }); }
   tip({ pen, x: pts[0][0], y: pts[0][1], a: -PI / 2, path: pts, len, w: 1.9 * u, tp: .3, c: [c2[0], c2[1], c2[2] - 8], c2: lite(c1, 10), cp: 1.25, dl: dark, sp: R(70, 110),
     end: t => { dot(pen, t.x, t.y, R(.8, 1.4) * u, powder ? rd.fr : c1, R(14, 26)); if (powder && rnd() < .55) froth(pen, t.x, t.y, rd.fr, u); } });
 }
@@ -753,6 +775,7 @@ function froth(pen, x, y, c, u) { const n = RI(2, 5); for (let i = 0; i < n; i++
 function wires(l, x, y) {
   const pen = l.pen, u = pen.u, pal = palette(), P = curP(), n = RI(3, 7), cs = [pal.stem, P.fr || P.hues[P.act[1]], pick(pal.pin), lite(pal.stem, 18), soft(P.hues[P.act[0]])];
   for (let i = 0; i < n; i++) { const s = rnd() < .5 ? 1 : -1, k = R(.003, .012), c = pick(cs);
+    if (l === LAYERS[2] && rnd() < .6) { const L = R(120, 340) * u; blades.add(x + gauss() * 12 * u, y + R(0, 6) * u, -PI / 2 + s * R(0, .5), L, R(1, 1.5) * u, c, lite(c, 10), { curl: s * k * L / u * .9, delay: R(0, 3), k: 1.3 }); continue; }
     tip({ pen, x: x + gauss() * 12 * u, y: y + R(0, 6) * u, a: -PI / 2 + s * R(0, .5), len: R(120, 340) * u, w: R(.6, 1) * u, tp: .3, c, c2: lite(c, 10), sp: R(26, 40), wander: .02, delay: R(0, 3), steer(t, kk) { t.a += s * k * kk; } }); }
 }
 PALETTES[0].fr = [272, 50, 72];
@@ -764,6 +787,7 @@ function grassBush(l, x, y, s) {
   for (let i = 0; i < n; i++) {
     const dz = rnd(), g = clamp(gauss() * .55, -1.2, 1.2), bx = x + g * rx + gauss() * 4 * u, by = y + (dz - .5) * 16 * u * s + Math.abs(g) * 6 * u;      // dz: 0 at the back, 1 at the front
     const a = -PI / 2 + g * R(.6, 1) + gauss() * .12, len = h * (1 - .45 * Math.abs(g)) * R(.55, 1.05) * (.8 + .3 * (1 - dz)), dk = (1 - dz) * 12, c1 = rnd() < .3 ? mixc(rd.c1, rd.fr, R(.2, .6)) : rd.c1;
+    if (l === LAYERS[2] && dz > .55 && rnd() < .14) { blades.add(bx, by, a, len, R(1.4, 2.2) * u, [rd.c2[0], rd.c2[1], rd.c2[2] - 6 - dk], lite(c1, 8 - dk * .5), { curl: g * R(.1, .35), dot: rnd() < .3 ? (fl ? rd.fr : c1) : null, delay: dz * 3 + R(0, 1.2) }); continue; }
     tip({ pen, x: bx, y: by, a, len, w: R(1.3, 2.2) * u, tp: .45, c: [rd.c2[0], rd.c2[1], rd.c2[2] - 6 - dk], c2: lite(c1, 8 - dk * .5), cp: 1.2, sp: R(40, 70), wander: .04, turn: g * R(.002, .006), droop: g * .004, delay: dz * 3 + R(0, 1.2),
       end: rnd() < .3 ? t => { dot(pen, t.x, t.y, R(.8, 1.5) * u, fl ? rd.fr : c1, 14); if (rnd() < .4) froth(pen, t.x, t.y, fl ? rd.fr : lite(c1, 10), u); } : null });
   }
@@ -1324,9 +1348,45 @@ const hs = (c, a = 1, dl = 0, ds = 0) => `hsla(${c[0] | 0},${clamp(c[1] + ds, 0,
 function hsl2rgb(c) { const h = c[0] / 360, s = c[1] / 100, l = c[2] / 100, k = n => (n + h * 12) % 12, a = s * Math.min(l, 1 - l); const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1)); return [f(0), f(8), f(4)]; }
 const DRY = [34, 38, 52];
 const GRAIN = (() => { const c = document.createElement('canvas'); c.width = c.height = 96; const g = c.getContext('2d'), d = g.createImageData(96, 96); for (let i = 0; i < d.data.length; i += 4) { const v = rnd() < .5 ? 0 : 255; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = rnd() * 120; } g.putImageData(d, 0, 0); return lx.createPattern(c, 'repeat'); })();
+/* live blades: a share of the grass, the bush filaments and the loose wires is drawn fresh every frame instead of painted once,
+   so each blade can lean on its own soft spring when the cursor or the camera stirs the air. They grow, stand, then brown, sag and crumble into seeds */
+const blades = {
+  list: [], MAX: 1200, BROWN: [30, 34, 36],
+  reset() { this.list.length = 0; },
+  add(x, y, a, L, w, c1, c2, o = {}) {
+    if (this.list.length >= this.MAX || L < 6 * U) return;
+    this.list.push({ x, y, a, L, w, c1, c2, dot: o.dot || null, t: -(o.delay || 0), G: Math.max(1.5, L / (U * R(40, 70))), hold: R(55, 110), D: R(9, 15), ph: R(TAU), f: R(.6, 1.3), curl: o.curl === undefined ? R(-.35, .35) : o.curl, swd: 0, swv: 0, swT: undefined, wn: R(1.5, 2.6), k: o.k || 1, crumb: 0 });
+  },
+  update(dt) {
+    for (let i = this.list.length - 1; i >= 0; i--) { const b = this.list[i]; b.t += dt * (1 + eg * .5); if (b.t > b.G + b.hold + b.D) { this.list[i] = this.list[this.list.length - 1]; this.list.pop(); } }
+  },
+  draw(k) {
+    const N = 7;
+    for (const b of this.list) {
+      if (b.t <= 0) continue;
+      const g = smooth(Math.min(1, b.t / b.G)), d = clamp((b.t - b.G - b.hold) / b.D, 0, 1), cr = clamp((d - .55) / .45, 0, 1);
+      let L = b.L * g * (1 - cr * .85); if (L < 1.5 * U) continue;
+      // the spring: the air pushes across the blade at its middle; the blade follows slowly and settles, never jumps
+      const mx = b.x + Math.cos(b.a) * L * .6, my = b.y + Math.sin(b.a) * L * .6, w = clamp((my / H * GH) | 0, 0, GH - 1) * GW + clamp((mx / W * GW) | 0, 0, GW - 1);
+      const wt = Math.tanh((-WX[w] * Math.sin(b.a) + WY[w] * Math.cos(b.a)) * 1.3 / .6) * .6 * b.k, sdt = Math.min(.05, Math.max(0, vtime - (b.swT === undefined ? vtime : b.swT))); b.swT = vtime;
+      if (sdt > 0) { b.swv += ((wt - b.swd) * b.wn * b.wn - 2 * .75 * b.wn * b.swv) * sdt; b.swv = clamp(b.swv, -1.5, 1.5); b.swd += b.swv * sdt; }
+      const sway = b.swd + Math.sin(vtime * (.5 + b.f * .35) + b.ph) * .05 * b.k, droop = d * 1.3 * (Math.cos(b.a) >= 0 ? 1 : -1);
+      // its centre line, bending more towards the tip
+      let x = b.x, y = b.y, a = b.a; const ds = L / N, P = [[x, y, a]];
+      for (let i = 0; i < N; i++) { const s = (i + .5) / N; a = b.a + b.curl * s + sway * s * s * 2.2 + droop * s * s; x += Math.cos(a) * ds; y += Math.sin(a) * ds; P.push([x, y, a]); }
+      const ww = b.w * (.6 + .4 * g), Lf = [], Rt = [];
+      for (let i = 0; i <= N; i++) { const s = i / N, hw = ww * (1 - .88 * s) * .5, q = P[i], nx = -Math.sin(q[2]) * hw, ny = Math.cos(q[2]) * hw; Lf.push(q[0] + nx, q[1] + ny); Rt.push(q[0] - nx, q[1] - ny); }
+      k.beginPath(); k.moveTo(Lf[0], Lf[1]); for (let i = 2; i < Lf.length; i += 2) k.lineTo(Lf[i], Lf[i + 1]); for (let i = Rt.length - 2; i >= 0; i -= 2) k.lineTo(Rt[i], Rt[i + 1]); k.closePath();
+      const c1 = d ? mixc(b.c1, this.BROWN, d) : b.c1, c2 = d ? mixc(b.c2, [36, 40, 52], d) : b.c2, gr = k.createLinearGradient(b.x, b.y, x, y);
+      gr.addColorStop(0, `hsla(${c1[0] | 0},${c1[1] | 0}%,${c1[2] | 0}%,.96)`); gr.addColorStop(1, `hsla(${c2[0] | 0},${c2[1] | 0}%,${c2[2] | 0}%,.96)`); k.fillStyle = gr; k.fill();
+      if (b.dot && g > .98 && !cr) { const c = d ? mixc(b.dot, this.BROWN, d) : b.dot; k.fillStyle = `hsla(${c[0] | 0},${c[1] | 0}%,${Math.min(95, c[2] + 14) | 0}%,.95)`; k.beginPath(); k.arc(x, y, ww * .55 + .5 * U, 0, TAU); k.fill(); }
+      if (cr > 0 && b.crumb < cr * 4 && GLX) { b.crumb++; addP(x, y, 5, b.dot || [36, 40, 52]); }      // crumbling: it lets go of a few seeds
+    }
+  },
+};
 const life = {
   list: [], petals: [], t: 2, arr: null, order: 0, tidy: 0, phase: 0, plan: null, pt: 0,
-  reset() { this.list.length = 0; this.petals.length = 0; this.t = 1.5; for (let i = 0; i < 4; i++) this.spawn(R(.15, .7)); },
+  reset() { this.list.length = 0; this.petals.length = 0; this.t = R(2, 4); },      // an empty page: every living plant starts from its seed
   target() { const s = style === seasons ? seasons.cur : style; return s === mycelium ? 5 : s === mix2 ? 16 : s === terrain ? 13 : 15; },
   spawn(age, spec, slot) {
     const P = curP(), pal = palette(), q = spec ? .5 : rnd(), z = spec ? spec.s * .9 : R(.7, 1.5); let x, y, a;
@@ -1335,7 +1395,7 @@ const life = {
     else if (q < .88) { const l = rnd() < .5; x = l ? -.02 * W : 1.02 * W; y = R(.2, .9) * H; a = l ? -R(.25, .9) : PI + R(.25, .9); }    // from the sides, bending up
     else { x = R(.08, .92) * W; y = -.03 * H; a = PI / 2 + R(-.3, .3); }                                                     // hanging from above
     if (spec) { x = spec.x; y = spec.y; a = -PI / 2; }
-    const types = ['daisy', 'lily', 'poppy', 'rose', 'fern', 'daisy', 'fern', 'cup', 'tendril', 'tendril'], type = spec ? spec.kind : pick(types), hang = !spec && a > 0;
+    const types = ['fern', 'tendril', 'lily', 'poppy', 'fern', 'tendril', 'tendril', 'fern', 'daisy'], type = spec ? spec.kind : pick(types), hang = !spec && a > 0;
     const c1 = spec ? spec.c1 : soft(P.hues[P.act[rnd() < .65 ? 0 : 1]]), c2 = spec ? spec.c2 : rnd() < .5 ? lite(c1, 14) : soft(pick(P.hues)), len = spec ? spec.H * spec.h * spec.s * (type === 'fern' ? .55 : 1) : (type === 'fern' ? R(.2, .42) : R(.14, .36)) * H * z;
     const T = { g: R(14, 24), o: R(7, 12), h: R(28, 60), w: R(12, 20), s: R(5, 9), f: 7 }; let acc = 0; for (const k of ['g', 'o', 'h', 'w', 's', 'f']) { acc += T[k]; T[k + 'e'] = acc; }
     const leaves = []; const nl = type === 'fern' ? 0 : RI(1, 4); for (let i = 0; i < nl; i++) leaves.push({ s: R(.15, .7), side: i % 2 ? 1 : -1, L: R(22, 46) * U * z, Wd: R(.28, .42), ang: R(.5, 1.05), d: R(0, 2) });
@@ -1426,7 +1486,7 @@ const life = {
     const N = 16, ds = L / N, pts = b.pts; pts.length = 0; let x = b.x, y = b.y, a = b.a;
     const hx = b.x + Math.cos(b.a) * L * .7, hy = b.y + Math.sin(b.a) * L * .7, ci = clamp((hx / W * GW) | 0, 0, GW - 1), cj = clamp((hy / H * GH) | 0, 0, GH - 1), w = cj * GW + ci;
     // the wind does not move a stem directly: it pulls on a soft spring, so a stem leans in slowly, overshoots a touch and settles back, never jumps
-    const wt = Math.tanh((WX[w] * Math.sin(-b.a) * -1 + WY[w] * Math.cos(b.a)) * 1.1 / .55) * .55, sdt = Math.min(.05, Math.max(0, vtime - (b.swT === undefined ? vtime : b.swT)));
+    const wt = Math.tanh((-WX[w] * Math.sin(b.a) + WY[w] * Math.cos(b.a)) * 1.1 / .55) * .55, sdt = Math.min(.05, Math.max(0, vtime - (b.swT === undefined ? vtime : b.swT)));
     b.swT = vtime; if (b.swd === undefined) { b.swd = 0; b.swv = 0; }
     if (sdt > 0) { const wn = 1.7 + (b.ph * 7.3 % 1) * 1.1; b.swv += ((wt - b.swd) * wn * wn - 2 * .8 * wn * b.swv) * sdt; b.swv = clamp(b.swv, -1.2, 1.2); b.swd += b.swv * sdt; }
     const sway = (Math.sin(vtime * (.45 + (b.ph % 1) * .3) + b.ph) * .1 + Math.sin(vtime * 1.3 + b.ph * 2) * .03) + b.swd;      // every stem moves in its own rhythm
@@ -1464,6 +1524,7 @@ const life = {
     const k = lx, vw = Math.round(W * DPR), vh = Math.round(H * DPR);
     if (liveCv.width !== vw || liveCv.height !== vh) { liveCv.width = vw; liveCv.height = vh; }
     k.setTransform(1, 0, 0, 1, 0, 0); k.clearRect(0, 0, vw, vh); k.setTransform(DPR, 0, 0, DPR, 0, 0);
+    blades.draw(k);
     this.list.sort((p, q) => p.z - q.z);
     for (const b of this.list) this.one(k, b);
     for (const p of this.petals) {      // the petal turns over as it falls: drawn narrower when seen edge-on
@@ -1848,20 +1909,22 @@ else { $('gLook').style.display = 'none'; }
 
 /* ───────────── input: pointer ───────────── */
 const ptr = { x: 0, y: 0, px: 0, py: 0, has: false, glow: 0, seen: -99, ax: 0, ay: 0, vx: 0, vy: 0, sx: 0, sy: 0, out: false };
-let parX = 0, parY = 0, parTX = 0, parTY = 0, parVX = 0, parVY = 0;
+try { if (matchMedia('(pointer: coarse)').matches) stage.classList.add('touch'); } catch (e) {}
+let barHold = -1, parX = 0, parY = 0, parTX = 0, parTY = 0, parVX = 0, parVY = 0;
 function local(e) { const r = stage.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
 stage.addEventListener('pointermove', e => {
   const [x, y] = local(e);
   if (!ptr.has) { ptr.has = true; ptr.px = ptr.sx = x; ptr.py = ptr.sy = y; }
   const mdx = x - ptr.px, mdy = y - ptr.py, d = Math.hypot(mdx, mdy);
-  ptr.x = x; ptr.y = y; ptr.px = x; ptr.py = y; ptr.glow = 1; ptr.seen = vtime; ptr.out = !!e.target.closest('#bar');
+  ptr.x = x; ptr.y = y; ptr.px = x; ptr.py = y; ptr.glow = 1; ptr.seen = vtime; ptr.out = !!(e.target.closest('#bar') || e.target.closest('#menuB'));
   // the movement is only collected here; ptrStep() turns it into a smoothed breeze once per frame, so fast or jerky hands stay gentle
   if (d > 0 && d < 200 * U && !ptr.out) { ptr.ax += mdx; ptr.ay += mdy; deposit(x, y, Math.min(.3, d / (150 * U)), false); if (rnd() < Math.min(1, d / (25 * U))) addDust(x + R(-12, 12) * U, y + R(-12, 12) * U, curP().hues[curP().act[0]]); }
   parTX = x / W * 2 - 1; parTY = y / H * 2 - 1;
-  showBar();
+  if (e.pointerType === 'touch') stage.classList.add('touch'); else if (!stage.classList.contains('touch') && (ptr.out || vtime > barHold)) showBar();      // on a phone the menu only opens from its own button
 });
 stage.addEventListener('pointerdown', e => {
-  if (e.target.closest('#bar')) return;
+  if (e.pointerType === 'touch') stage.classList.add('touch');
+  if (e.target.closest('#bar') || e.target.closest('#menuB')) return;
   const [x, y] = local(e); ptr.x = ptr.px = x; ptr.y = ptr.py = y; ptr.has = true; ptr.glow = 1;
   deposit(x, y, .5); sprouts(x, y); selfClick = Math.max(selfClick, 12);
 });
@@ -1938,7 +2001,12 @@ function camStep(dt) {
 
 /* ───────────── controls ───────────── */
 const bar = $('bar'), toastEl = $('toast'); let barT = 0, toastT = 0;
-function showBar() { bar.classList.add('on'); stage.classList.add('ui'); clearTimeout(barT); barT = setTimeout(() => { bar.classList.remove('on'); stage.classList.remove('ui'); }, 3000); }
+function showBar(ms) { bar.classList.add('on'); stage.classList.add('ui'); clearTimeout(barT); barT = setTimeout(hideBar, ms || (stage.classList.contains('touch') ? 12000 : 3000)); }
+function hideBar() { clearTimeout(barT); bar.classList.remove('on'); stage.classList.remove('ui'); }
+$('barX').addEventListener('click', e => { e.stopPropagation(); hideBar(); barHold = vtime + 3; });
+$('menuB').addEventListener('click', e => { e.stopPropagation(); showBar(); });
+bar.addEventListener('pointerdown', () => { if (stage.classList.contains('touch')) showBar(); });      // touching the menu keeps it open
+bar.addEventListener('scroll', () => { if (stage.classList.contains('touch')) showBar(); }, { passive: true });
 function toast(msg, ms = 4200) { toastEl.textContent = msg; toastEl.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove('on'), ms); }
 function fullscreen() {
   try {
@@ -1950,7 +2018,7 @@ function clearAll() { BAT.clear(); for (const l of LAYERS) { l.ctx.save(); l.ctx
 const styleBtns = [], colBtns = [];
 function mark() { styleBtns.forEach((b, i) => b.classList.toggle('active', i === sIdx)); colBtns.forEach((b, i) => b.classList.toggle('active', i < PALETTES.length ? (!drift && i === pIdx) : drift)); }
 function setPalette(i, keepDrift) { if (!keepDrift) { bgSlow = false; if (style === seasons) seasons.lockPal = true; } palVer++; rollAct(PALETTES[i], i === pIdx && !keepDrift ? null : PREF[i]); pIdx = i; if (!keepDrift) drift = false; mark(); }
-function setStyle(i) { seasons.lockPal = false; bgSlow = false; season.reset(); micro.reset(); selfClick = R(10, 18); sIdx = i; style = STYLES[i]; clearAll(); if (!drift) pIdx = style.pal; palVer++; rollAct(curP(), PREF[pIdx]); style.init(); life.reset(); pCount = 0; decays.length = 0; for (const l of LAYERS) l.ag.fill(0); mark(); }
+function setStyle(i) { seasons.lockPal = false; bgSlow = false; season.reset(); micro.reset(); blades.reset(); selfClick = R(10, 18); sIdx = i; style = STYLES[i]; clearAll(); if (!drift) pIdx = style.pal; palVer++; rollAct(curP(), PREF[pIdx]); style.init(); life.reset(); pCount = 0; decays.length = 0; for (const l of LAYERS) l.ag.fill(0); mark(); }
 STYLES.forEach((s, i) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = s.name; b.title = s.name + ' (' + (i + 1) + ')'; b.addEventListener('click', () => setStyle(i)); $('gStyle').appendChild(b); styleBtns.push(b); });
 PALETTES.forEach((p, i) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'sw'; b.style.background = p.sw; b.title = p.name; b.setAttribute('aria-label', p.name + ' colours'); b.addEventListener('click', () => setPalette(i)); $('gCol').appendChild(b); colBtns.push(b); });
 { const b = document.createElement('button'); b.type = 'button'; b.textContent = 'Drift'; b.title = 'Slowly cycle through all colours'; b.addEventListener('click', () => { drift = !drift; driftT = 0; mark(); }); $('gCol').appendChild(b); colBtns.push(b); }
@@ -2031,7 +2099,7 @@ function step(dt, vdt = dt) {
   ptrStep(vdt); camStep(vdt);
 
   fx.globalCompositeOperation = 'destination-out'; fx.fillStyle = cam.on ? 'rgba(0,0,0,.12)' : 'rgba(0,0,0,.3)'; fx.fillRect(0, 0, W, H); fx.globalCompositeOperation = 'source-over';
-  runProcs(dt); runTips(dt); runBeads(dt); mist(dt); life.update(dt); if (!window.__noDraw) { fairy(dt); runMotes(dt); runDust(dt); if (GLX) runP(vdt); }
+  runProcs(dt); runTips(dt); runBeads(dt); mist(dt); life.update(dt); blades.update(dt); if (!window.__noDraw) { fairy(dt); runMotes(dt); runDust(dt); if (GLX) runP(vdt); }
 
   if (ptr.has && ptr.glow > 0.01) {
     ptr.glow *= Math.exp(-dt * 1.2);

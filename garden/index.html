@@ -335,9 +335,9 @@ const LG = { on: false, L: [], cc: new Map(), MAXN: 260000,
         if (l0 + l1 < 16 * U && (l0 < .01 || (dx0 * dx1 + dy0 * dy1) / (l0 * l1 + 1e-9) > .993)) { a[o + 2] = x2; a[o + 3] = y2; s.ends.delete(key); s.ends.set(((x2 * 4) | 0) * 131071 + ((y2 * 4) | 0), j); this.dirty(s, j); return j; } } }
     const i = this.push(li, x1, y1, x2, y2, w, c, rx, ry, 0); if (s.ends.size > 30000) s.ends.clear(); s.ends.set(((x2 * 4) | 0) * 131071 + ((y2 * 4) | 0), i); return i;
   },
-  dot(pen, x, y, r, style) { const rt = pen.root; return this.push(this.li(pen), x, y, x, y, r * 2, this.rgba(style), rt ? rt[0] : NOROOT, rt ? rt[1] : NOROOT, 0); },
+  dot(pen, x, y, r, style) { const rt = pen.root; return this.push(this.li(pen), x, y, x, y, r * 2, this.rgba(style), rt ? rt[0] : x, rt ? rt[1] : y + 34 * U, 0); },      // a loose dot sways as if on a short stalk
   setDot(pen, i, x, y, r) { const s = this.L[this.li(pen)], o = i * LS; if (i >= s.n) return; s.a[o] = s.a[o + 2] = x; s.a[o + 1] = s.a[o + 3] = y; s.a[o + 10] = r * 2; this.dirty(s, i); },
-  ell(pen, x, y, rx, ry, ang, style) { const rt = pen.root; return this.push(this.li(pen), x, y, x + Math.cos(ang) * rx, y + Math.sin(ang) * rx, ry * 2, this.rgba(style), rt ? rt[0] : NOROOT, rt ? rt[1] : NOROOT, 1); },
+  ell(pen, x, y, rx, ry, ang, style) { const rt = pen.root; return this.push(this.li(pen), x, y, x + Math.cos(ang) * rx, y + Math.sin(ang) * rx, ry * 2, this.rgba(style), rt ? rt[0] : x, rt ? rt[1] : y + 34 * U, 1); },
   // a soft round patch of colour (kind 2), or a soft eraser (kind 3) that takes away what grew there before it
   blob(li, x, y, rx, ry, inner, c, erase) { return this.push(li, x, y, rx, ry, 0, c, NOROOT, NOROOT, erase ? 3 : 2, inner); },
   // dying: everything rooted (or lying) inside the patch browns, sags and crumbles, the middle first
@@ -380,6 +380,7 @@ const tips = [], beads = [], procs = [], perches = [], MAXT = 3200;
 function tip(o) {
   if (tips.length >= MAXT) return null;
   if (o.shade && !o.prof) { const cap = 4.2 * o.pen.u; if (o.w > cap) o.w = cap; if (o.wf) { const f0 = o.wf; o.wf = f => Math.min(cap, f0(f)); } }      // no fat tubes: thin stems and branches only
+  o.pen = rooted(o.pen, o.x, o.y);      // growth that has no plant root yet bends from where it starts
   o.d = 0; o.n = 0; o.acc = 0; o.ph = R(TAU); o.delay = o.delay || 0; o.cw = o.w; o.pi = 0;
   if (o.every) o.bacc = o.every * R(.4, 1);
   tips.push(o); return o;
@@ -1919,10 +1920,10 @@ function glSetup() {
     if (r.x < -1e5) return p;
     vec2 d = p - r; float L = length(d); if (L < .01) return p;
     float sd = h1(floor(r * .5));
-    vec2 w = texture(uW, clamp((r + d * .7) / uS, 0., 1.)).xy;
+    vec2 w = mix(texture(uW, clamp((r + d * .7) / uS, 0., 1.)).xy, texture(uW, clamp(p / uS, 0., 1.)).xy, .6);      // the wind where this part is, and along the plant
     float own = sin(uT * (.42 + .4 * sd) + sd * 6.283) * .07 + sin(uT * (1.1 + .5 * fract(sd * 7.)) + sd * 17.) * .022;
-    float g = L * L / (L + 55. * uK) / (1. + L / (190. * uK));
-    vec2 o = (w * uSw + vec2(own, own * .2)) * g * .55;
+    float g = clamp(L * L / (L + 12. * uK) / (1. + L / (200. * uK)), 5. * uK, 80. * uK);      // short things move too, long things more, never wildly
+    vec2 o = (w * uSw + vec2(own, own * .2)) * g * .75;
     return p + o + vec2(0., dy * L);
   }
   void main(){
@@ -2090,7 +2091,7 @@ function ptrStep(dt) {
   ptr.sx += (ptr.x - ptr.sx) * kp; ptr.sy += (ptr.y - ptr.sy) * kp;
   const sp = Math.hypot(ptr.vx, ptr.vy); if (sp < 6 * U || ptr.out) return;
   const g = Math.pow(Math.min(1, sp / (600 * U)), .8);
-  windAt(ptr.sx, ptr.sy, ptr.vx, ptr.vy, g * dt * 7, 3);
+  windAt(ptr.sx, ptr.sy, ptr.vx, ptr.vy, g * dt * 8, 3.5);
   if (ptrImp.length < 120) ptrImp.push(ptr.sx, ptr.sy, clamp(ptr.vx * dt, -24 * U, 24 * U), clamp(ptr.vy * dt, -24 * U, 24 * U));
 }
 
@@ -2147,7 +2148,7 @@ function camStep(dt) {
   let busy = 0; for (let i = 0; i < camS.length; i++) { camS[i] += (camT[i] - camS[i]) * k; if (camS[i] > .02) busy++; }
   const amt = dt * 1.1 / Math.sqrt(1 + busy / 25), imp = 6 * U * dt * 60 / Math.sqrt(1 + busy / 25);
   for (let id = 0; id < camS.length; id++) { const m = camS[id]; if (m < .02) continue; const x = (id % GW + .5) / GW * W, y = (((id / GW) | 0) + .5) / GH * H, s = Math.min(1, m * 1.6);
-    windAt(x, y, swayDir[0], swayDir[1], s * amt, 1.6); if (ptrImp.length < 160 && rnd() < .5) ptrImp.push(x, y, swayDir[0] * s * imp, swayDir[1] * s * imp); }
+    windAt(x, y, swayDir[0], swayDir[1], s * amt, 2.2); if (ptrImp.length < 160 && rnd() < .5) ptrImp.push(x, y, swayDir[0] * s * imp, swayDir[1] * s * imp); }
 }
 
 /* ───────────── controls ───────────── */
